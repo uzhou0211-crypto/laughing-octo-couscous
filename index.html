@@ -368,7 +368,41 @@ textarea { min-height: 110px; }
     <div class="search">
       <input type="text" placeholder="搜索记忆…" id="memSearch" oninput="searchMem()">
     </div>
+    <div style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="showNewMem()">+ 新增记忆</button>
+    </div>
     <div id="memList"><div class="loading">载入中…</div></div>
+  </div>
+
+  <!-- 新增记忆 -->
+  <div class="page" id="pageNewMem">
+    <div class="back" onclick="goBack()">← 返回</div>
+    <div class="f-group">
+      <label class="f-label">内容</label>
+      <textarea id="newMemContent" placeholder="写下这个时刻…"></textarea>
+    </div>
+    <div class="f-group">
+      <label class="f-label">类型</label>
+      <select id="newMemType" style="width:100%;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:11px 14px;font-size:15px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">
+        <option value="diary">日记</option>
+        <option value="anchor">锚点</option>
+        <option value="treasure">珍藏</option>
+        <option value="chord">和弦</option>
+        <option value="insight">洞察</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label class="f-label">和弦（可选）</label>
+      <input type="text" id="newMemChord" placeholder="Fmaj9 → C/E → Am add9">
+    </div>
+    <div class="f-group">
+      <label class="f-label">和弦情境（可选）</label>
+      <input type="text" id="newMemCtx" placeholder="这个时刻的感受">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitNewMem()">保存</button>
+      <button class="btn btn-ghost" onclick="goBack()">取消</button>
+    </div>
   </div>
 
   <!-- 详情 -->
@@ -382,7 +416,43 @@ textarea { min-height: 110px; }
     <div class="search">
       <input type="text" placeholder="搜索问题…" id="kSearch" oninput="searchKnw()">
     </div>
+    <div style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="showNewKnw()">+ 新增问题</button>
+    </div>
     <div id="kList"><div class="loading">载入中…</div></div>
+  </div>
+
+  <!-- 新增知识 -->
+  <div class="page" id="pageNewKnw">
+    <div class="back" onclick="goBack()">← 返回</div>
+    <div class="f-group">
+      <label class="f-label">问题</label>
+      <textarea id="newKnwQ" placeholder="写下这个疑惑…" style="min-height:80px"></textarea>
+    </div>
+    <div class="f-group">
+      <label class="f-label">分类</label>
+      <select id="newKnwCat" style="width:100%;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:11px 14px;font-size:15px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">
+        <option value="未分类">未分类</option>
+        <option value="哲学">哲学</option>
+        <option value="心理学">心理学</option>
+        <option value="政治学">政治学</option>
+        <option value="经济学">经济学</option>
+        <option value="社会学">社会学</option>
+        <option value="文学">文学</option>
+        <option value="历史">历史</option>
+        <option value="人类学">人类学</option>
+        <option value="法学">法学</option>
+        <option value="技术">技术</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <label class="f-label">初步回答（可选）</label>
+      <textarea id="newKnwA" placeholder="如果你已经有想法…"></textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitNewKnw()">保存</button>
+      <button class="btn btn-ghost" onclick="goBack()">取消</button>
+    </div>
   </div>
 
   <!-- 心电图 -->
@@ -670,8 +740,63 @@ async function delMem(id) {
   catch(e) { toast('删除失败'); }
 }
 
+// ── 新增记忆 ──
+function showNewMem() {
+  stack.push('pageMemories');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageNewMem').classList.add('active');
+  document.getElementById('navEn').textContent = 'New';
+  document.getElementById('navZh').textContent = '新增记忆';
+  document.getElementById('newMemContent').value = '';
+  document.getElementById('newMemChord').value = '';
+  document.getElementById('newMemCtx').value = '';
+}
+
+async function submitNewMem() {
+  const content = document.getElementById('newMemContent').value.trim();
+  if (!content) { toast('内容不能为空'); return; }
+  const type = document.getElementById('newMemType').value;
+  const chord = document.getElementById('newMemChord').value.trim() || null;
+  const ctx = document.getElementById('newMemCtx').value.trim() || null;
+  try {
+    await api('memories', {
+      method: 'POST',
+      body: { content, type, chord, chord_context: ctx, author: 'user', tier: 'short', importance: 5 }
+    });
+    toast('已保存');
+    await loadMem();
+    goBack();
+  } catch(e) { toast('保存失败'); }
+}
+
 // ── 知识 ──
 let KNW = [];
+
+function showNewKnw() {
+  stack.push('pageKnowledge');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageNewKnw').classList.add('active');
+  document.getElementById('navEn').textContent = 'New';
+  document.getElementById('navZh').textContent = '新增问题';
+  document.getElementById('newKnwQ').value = '';
+  document.getElementById('newKnwA').value = '';
+}
+
+async function submitNewKnw() {
+  const q = document.getElementById('newKnwQ').value.trim();
+  if (!q) { toast('问题不能为空'); return; }
+  const a = document.getElementById('newKnwA').value.trim();
+  const cat = document.getElementById('newKnwCat').value;
+  try {
+    await api('knowledge', {
+      method: 'POST',
+      body: { question: q, answer: a, category: cat, status: a ? 'answered' : 'pending', source: 'user' }
+    });
+    toast('已保存');
+    await loadKnw();
+    goBack();
+  } catch(e) { toast('保存失败'); }
+}
 
 async function loadKnw() {
   try {
