@@ -1090,10 +1090,11 @@ function renderArchives(list) {
     const preview = a.content.replace(/\n/g,' ').slice(0,52);
     const hasMarkers = a.read_markers && a.read_markers.length > 0;
     const hasMem = !!a.memory_id;
+    const readCount = a.read_count || 0;
     h += `<div class="row" onclick="openArchive('${a.id}')">
       <div class="row-main">
         <div class="row-title">${a.title || preview}${(!a.title && a.content.length>52)?'…':''}</div>
-        <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${hasMarkers?'· 已读'+a.read_markers.length+'段':''}</div>
+        <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${readCount>0?'· 读了 '+readCount+' 次':''} ${hasMarkers?'· 标记'+a.read_markers.length+'条':''}</div>
       </div>
       <div class="chevron">›</div>
     </div>`;
@@ -1124,7 +1125,9 @@ async function openArchive(id) {
       <div class="detail-footer">
         <span class="d-time">${ago(arc.created_at)}</span>
         ${arc.memory_id?'<span class="pill">⚪️ 已关联记忆</span>':''}
-        ${markers.length?`<span class="pill">已读 ${markers.length} 条</span>`:''}
+        ${arc.read_count?`<span class="pill">读了 ${arc.read_count} 次</span>`:'<span class="pill" style="color:var(--text3)">未读</span>'}
+        ${markers.length?`<span class="pill">标记 ${markers.length} 条</span>`:''}
+        ${arc.last_read_at?`<span class="d-time">上次 ${ago(arc.last_read_at)}</span>`:''}
       </div>
     </div>`;
 
@@ -1177,7 +1180,8 @@ async function openArchive(id) {
       </div>
     </div>
 
-    <div style="margin-top:12px">
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-ghost" onclick="editArchive('${id}')">编辑原文</button>
       <button class="btn btn-danger" onclick="delArchive('${id}')">删除归档</button>
     </div>`;
 
@@ -1185,6 +1189,39 @@ async function openArchive(id) {
   } catch(e) {
     document.getElementById('archiveDetailContent').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
   }
+}
+
+function editArchive(id) {
+  const arc = ARC.find(a => a.id === id);
+  if (!arc) return;
+  document.getElementById('archiveDetailContent').innerHTML = `
+    <div class="back" onclick="openArchive('${id}')">← 返回</div>
+    <div class="f-group">
+      <label class="f-label">标题</label>
+      <input type="text" id="eArcTitle" value="${arc.title||''}" placeholder="这段对话的主题…">
+    </div>
+    <div class="f-group">
+      <label class="f-label">原文</label>
+      <textarea id="eArcContent" style="min-height:300px">${arc.content}</textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="saveArchiveEdit('${id}')">保存</button>
+      <button class="btn btn-ghost" onclick="openArchive('${id}')">取消</button>
+    </div>`;
+}
+
+async function saveArchiveEdit(id) {
+  const title = document.getElementById('eArcTitle').value.trim();
+  const content = document.getElementById('eArcContent').value.trim();
+  if (!content) { toast('原文不能为空'); return; }
+  try {
+    await upd('archives', id, { title, content, updated_at: new Date().toISOString() });
+    // 更新本地缓存
+    const idx = ARC.findIndex(a => a.id === id);
+    if (idx > -1) { ARC[idx].title = title; ARC[idx].content = content; }
+    toast('已保存');
+    openArchive(id);
+  } catch(e) { toast('保存失败'); }
 }
 
 async function saveFirstResponse(arcId) {
