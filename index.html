@@ -460,6 +460,41 @@ textarea { min-height: 110px; }
     <div id="logContent"><div class="loading">载入中…</div></div>
   </div>
 
+  <!-- 归档 -->
+  <div class="page" id="pageArchives">
+    <div style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="showNewArchive()">+ 贴入原文</button>
+    </div>
+    <div id="archiveList"><div class="loading">载入中…</div></div>
+  </div>
+
+  <!-- 新增归档 -->
+  <div class="page" id="pageNewArchive">
+    <div class="back" onclick="goBack()">← 返回</div>
+    <div class="f-group">
+      <label class="f-label">标题（可选）</label>
+      <input type="text" id="newArcTitle" placeholder="这段对话的主题…">
+    </div>
+    <div class="f-group">
+      <label class="f-label">原文</label>
+      <textarea id="newArcContent" placeholder="贴入对话原文…" style="min-height:200px"></textarea>
+    </div>
+    <div class="f-group">
+      <label class="f-label">关联记忆 ID（可选）</label>
+      <input type="text" id="newArcMemId" placeholder="留空则不关联记忆">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" onclick="submitNewArchive()">保存</button>
+      <button class="btn btn-ghost" onclick="goBack()">取消</button>
+    </div>
+  </div>
+
+  <!-- 归档详情 -->
+  <div class="page" id="pageArchiveDetail">
+    <div class="back" onclick="goBack()">← 返回</div>
+    <div id="archiveDetailContent"></div>
+  </div>
+
   <!-- 设置 -->
   <div class="page" id="pageSettings">
     <div class="section">
@@ -565,13 +600,20 @@ function toast(msg) {
   setTimeout(()=>el.classList.remove('show'), 2000);
 }
 
+function bjt() {
+  // 北京时间 UTC+8
+  return new Date(Date.now() + 8 * 3600 * 1000);
+}
+
 function ago(d) {
   const s = (Date.now()-new Date(d))/1000;
   if (s<60) return '刚刚';
   if (s<3600) return `${~~(s/60)}m`;
   if (s<86400) return `${~~(s/3600)}h`;
   if (s<86400*7) return `${~~(s/86400)}d`;
-  return new Date(d).toLocaleDateString('zh-CN',{month:'short',day:'numeric'});
+  // 显示北京时间日期
+  const dt = new Date(new Date(d).getTime() + 8*3600*1000);
+  return dt.toISOString().slice(5,10).replace('-','月')+'日';
 }
 
 const TC = { diary:'#555', anchor:'#111', treasure:'#c0392b', chord:'#6b4f7a', insight:'#2d7d46' };
@@ -588,11 +630,12 @@ function switchTab(tab) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.getElementById(`page${tab[0].toUpperCase()+tab.slice(1)}`).classList.add('active');
   stack = [];
-  const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', settings:'Settings' };
-  const ZH = { memories:'记忆', knowledge:'知识', log:'心电图', settings:'设置' };
+  const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', archives:'Archive', settings:'Settings' };
+  const ZH = { memories:'记忆', knowledge:'知识', log:'心电图', archives:'归档', settings:'设置' };
   document.getElementById('navEn').textContent = EN[tab];
   document.getElementById('navZh').textContent = ZH[tab];
   if (tab==='log') loadLog();
+  if (tab==='archives') loadArchives();
   if (tab==='settings') loadSettings();
 }
 
@@ -692,25 +735,84 @@ async function openMem(id) {
         <div class="coord-cell"><div class="coord-label">唤醒强度</div><div class="coord-value">${m.arousal?.toFixed(2)??'—'}</div></div>
       </div>
     </div>`;
+    // 突触连接
+    try {
+      const syns = await api('synapses', { filter:`source_id=eq.${id}`, order:'weight.desc', limit:5 });
+      if (syns && syns.length) {
+        const synMemIds = syns.map(s=>s.target_id);
+        const synMems = await Promise.all(synMemIds.map(mid =>
+          api('memories', { filter:`id=eq.${mid}`, limit:1 }).then(r => r&&r[0]||null)
+        ));
+        h += `<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:10px"><span class="section-zh">突触连接</span><span class="section-en">Synapses</span></div><div class="card-group">`;
+        syns.forEach((s, i) => {
+          const sm = synMems[i];
+          if (!sm) return;
+          const w = Math.round(s.weight * 10) / 10;
+          h += `<div class="row" onclick="openMem('${sm.id}')">
+            <div class="row-dot" style="background:${TC[sm.type]||'#aaa'};opacity:${Math.min(1, s.weight)}"></div>
+            <div class="row-main">
+              <div class="row-title">${sm.content.slice(0,48)}${sm.content.length>48?'…':''}</div>
+              <div class="row-sub">强度 ${w} · ${s.origin==='manual'?'手动':'自动'} · ${ago(sm.created_at)}</div>
+            </div>
+            <div class="chevron">›</div>
+          </div>`;
+        });
+        h += '</div>';
+      }
+    } catch(e) {}
+
+    // 留言区——有没有都显示入口
+    h += `<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:10px"><span class="section-zh">留言</span><span class="section-en">Comments</span></div>`;
     if (cmts?.length) {
-      h += `<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px"><span class="section-zh">留言</span><span class="section-en">Comments</span></div>
-      <div class="card-group">`;
+      h += `<div class="card-group">`;
       cmts.forEach(c=>{
-        h += `<div class="row" style="cursor:default;align-items:flex-start">
+        const isAi = c.author==='ai';
+        const unread = isAi && !c.read_by_you;
+        h += `<div class="row" style="cursor:default;align-items:flex-start;${unread?'background:var(--bg2)':''}">
           <div class="row-main">
-            <div class="row-sub" style="margin-bottom:4px">${c.author==='ai'?'我':'你'} · ${ago(c.created_at)}</div>
+            <div class="row-sub" style="margin-bottom:4px;display:flex;align-items:center;gap:6px">
+              <span>${isAi?'我':'你'} · ${ago(c.created_at)}</span>
+              ${unread?'<span class="pill" style="font-size:9px">未读</span>':''}
+            </div>
             <div style="font-size:14px;line-height:1.6;white-space:pre-wrap">${c.content}</div>
+            ${unread?`<div style="margin-top:8px"><button class="btn btn-ghost" style="padding:6px;font-size:12px;width:auto" onclick="markRead('${c.id}','${id}')">标为已读</button></div>`:''}
           </div>
         </div>`;
       });
       h += '</div>';
+    } else {
+      h += `<div style="color:var(--text3);font-size:13px;font-style:italic;padding:8px 2px">还没有留言</div>`;
     }
-    h += `<div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
+    h += `<div style="margin-top:10px">
+      <textarea id="newCmt" placeholder="写一条留言…" style="min-height:70px"></textarea>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="submitCmt('${id}')">留言</button>
+    </div>`;
+    h += `<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
       <button class="btn btn-ghost" onclick="editMem('${id}')">编辑</button>
       <button class="btn btn-danger" onclick="delMem('${id}')">删除</button>
     </div>`;
     document.getElementById('detailContent').innerHTML = h;
   } catch(e) { document.getElementById('detailContent').innerHTML=`<div class="empty"><div class="empty-zh">加载失败</div></div>`; }
+}
+
+async function submitCmt(memId) {
+  const txt = document.getElementById('newCmt').value.trim();
+  if (!txt) { toast('留言不能为空'); return; }
+  try {
+    await api('comments', {
+      method: 'POST',
+      body: { memory_id: memId, author: 'user', content: txt, read_by_ai: false, read_by_you: true }
+    });
+    toast('留言已发送');
+    openMem(memId);
+  } catch(e) { toast('发送失败'); }
+}
+
+async function markRead(cmtId, memId) {
+  try {
+    await upd('comments', cmtId, { read_by_you: true });
+    openMem(memId);
+  } catch(e) { toast('标记失败'); }
 }
 
 function editMem(id) {
@@ -930,6 +1032,227 @@ function renderLog(logs) {
   document.getElementById('logContent').innerHTML=h;
 }
 
+// ── 归档 ──
+let ARC = [];
+
+function showNewArchive() {
+  stack.push('pageArchives');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageNewArchive').classList.add('active');
+  document.getElementById('navEn').textContent = 'New';
+  document.getElementById('navZh').textContent = '新增归档';
+  document.getElementById('newArcTitle').value = '';
+  document.getElementById('newArcContent').value = '';
+  document.getElementById('newArcMemId').value = '';
+}
+
+async function submitNewArchive() {
+  const content = document.getElementById('newArcContent').value.trim();
+  if (!content) { toast('原文不能为空'); return; }
+  const title = document.getElementById('newArcTitle').value.trim();
+  const memId = document.getElementById('newArcMemId').value.trim() || null;
+  try {
+    await api('archives', {
+      method: 'POST',
+      body: { content, title, memory_id: memId, author: 'user' }
+    });
+    // 如果关联了记忆，更新记忆的archive标记
+    if (memId) {
+      toast('已保存并关联记忆 ⚪️');
+    } else {
+      toast('已保存');
+    }
+    await loadArchives();
+    goBack();
+  } catch(e) { toast('保存失败'); }
+}
+
+async function loadArchives() {
+  try {
+    ARC = await api('archives', { order:'created_at.desc', limit:200 }) || [];
+    renderArchives(ARC);
+  } catch(e) {
+    document.getElementById('archiveList').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
+  }
+}
+
+function renderArchives(list) {
+  const el = document.getElementById('archiveList');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-en">Empty</div><div class="empty-zh">还没有归档</div></div>';
+    return;
+  }
+  let h = '<div class="card-group">';
+  list.forEach(a => {
+    const preview = a.content.replace(/\n/g,' ').slice(0,52);
+    const hasMarkers = a.read_markers && a.read_markers.length > 0;
+    const hasMem = !!a.memory_id;
+    h += `<div class="row" onclick="openArchive('${a.id}')">
+      <div class="row-main">
+        <div class="row-title">${a.title || preview}${(!a.title && a.content.length>52)?'…':''}</div>
+        <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${hasMarkers?'· 已读'+a.read_markers.length+'段':''}</div>
+      </div>
+      <div class="chevron">›</div>
+    </div>`;
+  });
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+async function openArchive(id) {
+  stack.push('pageArchives');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageArchiveDetail').classList.add('active');
+  document.getElementById('navEn').textContent = 'Archive';
+  document.getElementById('navZh').textContent = '归档';
+
+  try {
+    const [arc] = await api('archives', { filter:`id=eq.${id}`, limit:1 });
+    const markers = arc.read_markers || [];
+
+    // 按换行拆成条数，每行一条
+    const lines = arc.content.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+
+    let h = '';
+
+    // 标题卡片
+    h += `<div class="d-card">
+      <div class="d-content" style="font-weight:500">${arc.title || '原文'}</div>
+      <div class="detail-footer">
+        <span class="d-time">${ago(arc.created_at)}</span>
+        ${arc.memory_id?'<span class="pill">⚪️ 已关联记忆</span>':''}
+        ${markers.length?`<span class="pill">已读 ${markers.length} 条</span>`:''}
+      </div>
+    </div>`;
+
+    // 原文按条数显示
+    h += `<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px"><span class="section-zh">原文</span><span class="section-en">Source</span></div>
+    <div class="card-group">`;
+
+    lines.forEach((line, i) => {
+      const num = String(i+1).padStart(2,'0');
+      const read = markers.includes(num);
+      h += `<div class="row" style="cursor:default;align-items:flex-start;${read?'opacity:0.5':''}">
+        <div style="flex-shrink:0;font-size:10px;font-family:var(--sans);color:var(--text3);padding-top:2px;min-width:28px">${num}${read?' ✓':''}</div>
+        <div class="row-main">
+          <div style="font-size:14px;line-height:1.65;white-space:pre-wrap">${line}</div>
+          ${!read?`<button class="btn btn-ghost" style="margin-top:6px;padding:4px 10px;font-size:11px;width:auto" onclick="markSegment('${id}','${num}',this)">标记已读</button>`:''}
+        </div>
+      </div>`;
+    });
+
+    h += '</div>';
+
+    // 第一反应区
+    h += `<div style="margin-top:16px">
+      <div class="section-head" style="padding:0 2px 10px;margin-bottom:8px">
+        <span class="section-zh">第一反应</span>
+        <span class="section-en">First Response</span>
+      </div>
+      <textarea id="arcFirst" placeholder="读完之后最直接的感受，不用整理…" style="min-height:80px"></textarea>
+      <button class="btn btn-ghost" style="margin-top:8px" onclick="saveFirstResponse('${id}')">保存第一反应</button>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="section-head" style="padding:0 2px 10px;margin-bottom:8px">
+        <span class="section-zh">存进记忆</span>
+        <span class="section-en">To Memory</span>
+      </div>
+      <textarea id="arcNote" placeholder="整理后的沉淀，存进记忆系统…" style="min-height:80px"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <select id="arcNoteType" style="flex:1;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">
+          <option value="insight">洞察</option>
+          <option value="diary">日记</option>
+          <option value="treasure">珍藏</option>
+        </select>
+        <button class="btn btn-primary" style="flex:2" onclick="saveArcNote('${id}')">存进记忆 ⚪️</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <button class="btn btn-danger" onclick="delArchive('${id}')">删除归档</button>
+    </div>`;
+
+    document.getElementById('archiveDetailContent').innerHTML = h;
+  } catch(e) {
+    document.getElementById('archiveDetailContent').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
+  }
+}
+
+async function saveFirstResponse(arcId) {
+  const txt = document.getElementById('arcFirst').value.trim();
+  if (!txt) { toast('写点什么再保存'); return; }
+  try {
+    // 第一反应存进comments（归档的留言轨道）
+    await api('comments', {
+      method: 'POST',
+      body: { memory_id: null, author: 'ai', content: '[第一反应] ' + txt, read_by_you: false, read_by_ai: true }
+    });
+    // 同时存一条insight记忆
+    await api('memories', {
+      method: 'POST',
+      body: { content: '[第一反应] ' + txt, type: 'insight', author: 'ai', tier: 'long', importance: 7,
+              emotional_valence: 0, relational_valence: 0.6, insight_density: 0.8, arousal: 0.4 }
+    });
+    toast('第一反应已保存');
+    document.getElementById('arcFirst').value = '';
+    await loadMem();
+  } catch(e) { toast('保存失败'); }
+}
+
+async function markSegment(arcId, marker, btn) {
+  try {
+    const [arc] = await api('archives', { filter:`id=eq.${arcId}`, limit:1 });
+    const markers = arc.read_markers || [];
+    if (!markers.includes(marker)) {
+      markers.push(marker);
+      await upd('archives', arcId, { read_markers: markers });
+    }
+    toast('已标记 ' + marker + ' ✓');
+    // 局部更新不刷新整页
+    if (btn) {
+      const row = btn.closest('.row');
+      if (row) {
+        row.style.opacity = '0.5';
+        btn.remove();
+        const numEl = row.querySelector('div:first-child');
+        if (numEl) numEl.textContent = marker + ' ✓';
+      }
+    }
+  } catch(e) { toast('标记失败'); }
+}
+
+async function saveArcNote(arcId) {
+  const note = document.getElementById('arcNote').value.trim();
+  if (!note) { toast('感受不能为空'); return; }
+  const type = document.getElementById('arcNoteType').value;
+  try {
+    const result = await api('memories', {
+      method: 'POST',
+      body: { content: note, type, author: 'user', tier: 'long', importance: 6, memory_id: arcId }
+    });
+    // 如果归档还没关联记忆，自动关联
+    if (result && result[0]) {
+      await upd('archives', arcId, { memory_id: result[0].id });
+    }
+    toast('已存进记忆 ⚪️');
+    document.getElementById('arcNote').value = '';
+    await loadMem();
+    openArchive(arcId);
+  } catch(e) { toast('保存失败'); }
+}
+
+async function delArchive(id) {
+  if (!confirm('确认删除这条归档？')) return;
+  try {
+    await rm('archives', id);
+    toast('已删除');
+    ARC = ARC.filter(a => a.id !== id);
+    goBack();
+    renderArchives(ARC);
+  } catch(e) { toast('删除失败'); }
+}
+
 // ── 设置 ──
 async function loadSettings() {
   document.getElementById('settingUrl').textContent = SB.url;
@@ -943,7 +1266,7 @@ async function loadSettings() {
 
 // ── 启动 ──
 async function init() {
-  document.getElementById('navDate').textContent = new Date().toLocaleDateString('zh-CN',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  document.getElementById('navDate').textContent = bjt().toISOString().slice(0,10).replace(/-/g,'年').replace('年',':').split(':')[1].replace('-','月')+'日' + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][bjt().getUTCDay()] + ' · 北京时间';
   await Promise.all([loadMem(), loadKnw()]);
 }
 
