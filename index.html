@@ -1387,8 +1387,8 @@ async function openArchive(id) {
         <span class="section-zh">临时便签</span>
         <span class="section-en">Scratch</span>
       </div>
-      <div id="scratchItems_${id}"></div>
-      <textarea id="scratchInput_${id}" placeholder="读完之后写在这里，临时草稿…" style="min-height:70px;margin-top:4px"></textarea>
+      <div id="si_${id.replace(/-/g,'_')}"></div>
+      <textarea id="st_${id.replace(/-/g,'_')}" placeholder="读完之后写在这里，临时草稿…" style="min-height:70px;margin-top:4px"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-ghost" style="flex:1" onclick="addScratchToArc('${id}')">存便签</button>
         <button class="btn btn-ghost" style="flex:1;color:#ff3b30" onclick="clearAllScratch('${id}')">清空便签</button>
@@ -1701,7 +1701,7 @@ async function loadScratchForArc(arcId) {
       headers: { 'apikey': SB.key, 'Authorization': `Bearer ${SB.key}` }
     });
     const items = res.ok ? await res.json() : [];
-    const el = document.getElementById('scratchItems_' + arcId);
+    const el = document.getElementById('si_' + arcId.replace(/-/g,'_'));
     if (!el) return;
     if (!items.length) { el.innerHTML = ''; return; }
     el.innerHTML = items.map(s => {
@@ -1710,14 +1710,14 @@ async function loadScratchForArc(arcId) {
       return `<div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:8px;position:relative">
         <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;padding-right:40px">${s.content}</div>
         <div style="font-size:11px;font-family:var(--sans);color:var(--text3);margin-top:4px">${t}</div>
-        <button onclick="deleteScratch('${s.id}','${arcId}')" style="position:absolute;top:10px;right:10px;background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer">删除</button>
+        <button onclick="deleteScratch('${s.id}','${arcId}')" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer;font-family:var(--sans)">删除</button>
       </div>`;
     }).join('');
   } catch(e) {}
 }
 
 async function addScratchToArc(arcId) {
-  const el = document.getElementById('scratchInput_' + arcId);
+  const el = document.getElementById('st_' + arcId.replace(/-/g,'_'));
   const txt = el ? el.value.trim() : '';
   if (!txt) { toast('写点什么再存'); return; }
   try {
