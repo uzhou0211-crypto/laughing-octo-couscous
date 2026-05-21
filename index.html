@@ -1440,9 +1440,8 @@ async function saveArcNote(arcId) {
   try {
     const result = await api('memories', {
       method: 'POST',
-      body: { content: note, type, author: 'user', tier: 'long', importance: 6, memory_id: arcId }
+      body: { content: note, type, author: 'user', tier: 'long', importance: 6 }
     });
-    // 如果归档还没关联记忆，自动关联
     if (result && result[0]) {
       await upd('archives', arcId, { memory_id: result[0].id });
     }
@@ -1450,7 +1449,7 @@ async function saveArcNote(arcId) {
     document.getElementById('arcNote').value = '';
     await loadMem();
     openArchive(arcId);
-  } catch(e) { toast('保存失败'); }
+  } catch(e) { toast('保存失败：' + e.message); }
 }
 
 async function delArchive(id) {
