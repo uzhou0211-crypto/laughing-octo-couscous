@@ -987,16 +987,7 @@ async function openKnw(id) {
     ? '<div class="card-group" style="margin-bottom:8px"><div class="row" style="cursor:pointer" data-aid="' + k.source.replace('archive_','') + '" onclick="goToArchive(this.dataset.aid)"><div class="row-main"><div class="row-title">查看来源归档</div><div class="row-sub">点击跳转</div></div><div class="chevron">›</div></div></div>'
     : '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:4px 2px;margin-bottom:8px">暂无关联归档</div>';
 
-  const arcOpts = ARC.map(a => '<option value="' + a.id + '">' + (a.title || a.content.slice(0,30)) + '</option>').join('');
-
-  document.getElementById('detailContent').innerHTML += arcLink
-    + '<div style="display:flex;gap:8px">'
-    + '<select id="knwArcSel" style="flex:2;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:13px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">'
-    + '<option value="">选择一条归档关联…</option>'
-    + arcOpts
-    + '</select>'
-    + '<button class="btn btn-ghost" style="flex:1;white-space:nowrap" data-id="' + id + '" onclick="linkKnwToArc(this.dataset.id)">关联</button>'
-    + '</div>';
+  document.getElementById('detailContent').innerHTML += arcLink;
 }
 
 
@@ -1022,6 +1013,40 @@ async function linkKnwToArc(knwId) {
     if (idx > -1) KNW[idx].source = 'archive_' + arcId;
     toast('已关联归档');
     openKnw(knwId);
+  } catch(e) { toast('关联失败'); }
+}
+
+async function loadKnwForArc(arcId) {
+  await loadKnw();
+  const el = document.getElementById('knwListForArc');
+  if (!el) return;
+  if (!KNW.length) {
+    el.innerHTML = '<div class="row" style="cursor:default;color:var(--text3);font-style:italic;font-size:14px">还没有知识库问题</div>';
+    return;
+  }
+  let h = '';
+  KNW.slice(0, 20).forEach(k => {
+    h += `<div class="row" style="cursor:pointer" onclick="linkArcToKnw('${arcId}','${k.id}',this)">
+      <div class="row-main">
+        <div class="row-title">${k.question.slice(0,50)}${k.question.length>50?'…':''}</div>
+        <div class="row-sub">${k.status==='pending'?'待回答':'已回答'} · ${k.category}</div>
+      </div>
+      <div class="chevron">›</div>
+    </div>`;
+  });
+  el.innerHTML = h;
+}
+
+async function linkArcToKnw(arcId, knwId, row) {
+  try {
+    await upd('knowledge', knwId, { source: 'archive_' + arcId, updated_at: new Date().toISOString() });
+    const idx = KNW.findIndex(k => k.id === knwId);
+    if (idx > -1) KNW[idx].source = 'archive_' + arcId;
+    toast('已关联 ⚪️');
+    if (row) {
+      row.style.opacity = '0.4';
+      row.querySelector('.chevron').textContent = '✓';
+    }
   } catch(e) { toast('关联失败'); }
 }
 
@@ -1274,7 +1299,17 @@ async function openArchive(id) {
       </div>
     </div>
 
-    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+    <div style="margin-top:12px">
+      <div class="section-head" style="padding:0 2px 10px;margin-bottom:1px">
+        <span class="section-zh">关联知识库</span>
+        <span class="section-en">Link Knowledge</span>
+      </div>
+      <div class="card-group" id="knwListForArc" style="margin-bottom:10px">
+        <div class="row" style="cursor:default;color:var(--text3);font-style:italic;font-size:14px">点击展开选择…</div>
+      </div>
+      <button class="btn btn-ghost" style="margin-bottom:8px" onclick="loadKnwForArc('${id}')">选择关联的知识库问题</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn btn-ghost" onclick="editArchive('${id}')">编辑原文</button>
       <button class="btn btn-danger" onclick="delArchive('${id}')">删除归档</button>
     </div>`;
