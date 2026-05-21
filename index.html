@@ -1240,10 +1240,28 @@ function renderArchives(list) {
     const hasMarkers = a.read_markers && a.read_markers.length > 0;
     const hasMem = !!a.memory_id;
     const readCount = a.read_count || 0;
+
+    // 热力色——跟日历一样，橙色系
+    function arcHeatColor(n) {
+      if (!n) return 'rgba(205,110,75,0.06)';
+      if (n === 1) return 'rgba(205,110,75,0.20)';
+      if (n === 2) return 'rgba(205,110,75,0.40)';
+      if (n === 3) return 'rgba(205,110,75,0.60)';
+      if (n === 4) return 'rgba(205,110,75,0.75)';
+      return 'rgba(205,110,75,0.92)';
+    }
+
+    const dotColor = arcHeatColor(readCount);
+    const dotBorder = readCount > 0 ? 'none' : '1px solid rgba(205,110,75,0.25)';
+
     h += `<div class="row" onclick="openArchive('${a.id}')">
-      <div class="row-main">
-        <div class="row-title">${a.title || preview}${(!a.title && a.content.length>52)?'…':''}</div>
-        <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${readCount>0?'· 读了 '+readCount+' 次':''} ${hasMarkers?'· 标记'+a.read_markers.length+'条':''}</div>
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+        <div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${dotColor};border:${dotBorder}" title="读了${readCount}次"></div>
+        <div class="row-main">
+          <div class="row-title">${a.title || preview}${(!a.title && a.content.length>52)?'…':''}</div>
+          <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${readCount>0?'· '+readCount+'次':''} ${hasMarkers?'· '+a.read_markers.length+'条':''}
+          </div>
+        </div>
       </div>
       <div class="chevron">›</div>
     </div>`;
