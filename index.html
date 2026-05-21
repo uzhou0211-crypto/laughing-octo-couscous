@@ -495,6 +495,11 @@ textarea { min-height: 110px; }
     <div id="archiveDetailContent"></div>
   </div>
 
+  <!-- 日历 -->
+  <div class="page" id="pageCalendar">
+    <div id="calendarContent"></div>
+  </div>
+
   <!-- 设置 -->
   <div class="page" id="pageSettings">
     <div class="section">
@@ -523,9 +528,14 @@ textarea { min-height: 110px; }
       <div class="card-group" style="margin-top:1px">
         <div class="row"><div class="row-main"><div class="row-title">记忆总数</div></div><div class="row-right" id="sMem">—</div></div>
         <div class="row"><div class="row-main"><div class="row-title">知识条目</div></div><div class="row-right" id="sKnw">—</div></div>
-        <div class="row"><div class="row-main"><div class="row-title">日志天数</div></div><div class="row-right" id="sLog">—</div></div>
-      </div>
-    </div>
+         <div class="row"><div class="row-main"><div class="row-title">日志天数</div></div><div class="row-right" id="sLog">—</div></div>
+         <div class="row"><div class="row-main"><div class="row-title">对话次数</div></div><div class="row-right" id="sSes">—</div></div>
+       </div>
+     </div>
+     <div class="section">
+       <div class="section-head"><span class="section-zh">会话历史</span><span class="section-en">Sessions</span></div>
+       <div id="sessionList" style="margin-top:1px"><div class="loading">载入中…</div></div>
+     </div>
   </div>
 
   <!-- 标签栏 -->
@@ -541,6 +551,9 @@ textarea { min-height: 110px; }
     </div>
     <div class="tab" onclick="switchTab('archives')" id="tab-archives">
       <div class="tab-zh">归档</div><div class="tab-en">Archive</div>
+    </div>
+    <div class="tab" onclick="switchTab('calendar')" id="tab-calendar">
+      <div class="tab-zh">日历</div><div class="tab-en">Calendar</div>
     </div>
     <div class="tab" onclick="switchTab('settings')" id="tab-settings">
       <div class="tab-zh">设置</div><div class="tab-en">Settings</div>
@@ -633,12 +646,13 @@ function switchTab(tab) {
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.getElementById(`page${tab[0].toUpperCase()+tab.slice(1)}`).classList.add('active');
   stack = [];
-  const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', archives:'Archive', settings:'Settings' };
-  const ZH = { memories:'记忆', knowledge:'知识', log:'心电图', archives:'归档', settings:'设置' };
+  const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', archives:'Archive', calendar:'Calendar', settings:'Settings' };
+  const ZH = { memories:'记忆', knowledge:'知识', log:'心电图', archives:'归档', calendar:'日历', settings:'设置' };
   document.getElementById('navEn').textContent = EN[tab];
   document.getElementById('navZh').textContent = ZH[tab];
   if (tab==='log') loadLog();
   if (tab==='archives') loadArchives();
+  if (tab==='calendar') loadCalendar();
   if (tab==='settings') loadSettings();
 }
 
@@ -1441,15 +1455,189 @@ async function delArchive(id) {
   } catch(e) { toast('删除失败'); }
 }
 
+// ── 日历 ──
+let calYear = new Date().getUTCFullYear();
+let calMonth = new Date().getUTCMonth(); // 0-indexed，北京时间修正
+(() => {
+  const bjt = new Date(Date.now() + 8*3600*1000);
+  calYear = bjt.getUTCFullYear();
+  calMonth = bjt.getUTCMonth();
+})();
+
+async function loadCalendar() {
+  document.getElementById('calendarContent').innerHTML = '<div class="loading">载入中…</div>';
+  try {
+    // 查这个月的sessions
+    const startOfMonth = new Date(Date.UTC(calYear, calMonth, 1) - 8*3600*1000).toISOString();
+    const endOfMonth = new Date(Date.UTC(calYear, calMonth+1, 1) - 8*3600*1000).toISOString();
+    const sessions = await api('sessions', {
+      filter: `started_at=gte.${startOfMonth}&started_at=lt.${endOfMonth}`,
+      order: 'started_at.asc',
+      limit: 500
+    }) || [];
+
+    // 统计每天对话次数（北京时间）
+    const dayCounts = {};
+    sessions.forEach(s => {
+      const bjt = new Date(new Date(s.started_at).getTime() + 8*3600*1000);
+      const day = bjt.getUTCDate();
+      dayCounts[day] = (dayCounts[day] || 0) + 1;
+    });
+
+    const maxCount = Math.max(...Object.values(dayCounts), 1);
+    const today = new Date(Date.now() + 8*3600*1000);
+    const todayYear = today.getUTCFullYear();
+    const todayMonth = today.getUTCMonth();
+    const todayDate = today.getUTCDate();
+
+    // 月历计算
+    const firstDay = new Date(Date.UTC(calYear, calMonth, 1)).getUTCDay(); // 0=周日
+    const daysInMonth = new Date(Date.UTC(calYear, calMonth+1, 0)).getUTCDate();
+    const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+    // 紫色热力色阶
+    function heatColor(count) {
+      if (!count) return 'rgba(139,92,246,0.06)';
+      const ratio = count / maxCount;
+      if (ratio < 0.2) return 'rgba(139,92,246,0.15)';
+      if (ratio < 0.4) return 'rgba(139,92,246,0.30)';
+      if (ratio < 0.6) return 'rgba(139,92,246,0.50)';
+      if (ratio < 0.8) return 'rgba(139,92,246,0.70)';
+      return 'rgba(139,92,246,0.90)';
+    }
+
+    function textColor(count) {
+      if (!count) return 'var(--text3)';
+      const ratio = count / maxCount;
+      return ratio >= 0.5 ? '#ffffff' : 'rgba(109,40,217,0.9)';
+    }
+
+    let h = `<div style="background:var(--card);border-radius:var(--radius);padding:20px;">`;
+
+    // 说明
+    h += `<div style="font-size:12px;font-family:var(--sans);color:var(--text3);margin-bottom:16px">颜色越深，当天对话越多</div>`;
+
+    // 月份导航
+    h += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <button onclick="calPrev()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);padding:4px 10px;">◀</button>
+      <div style="font-size:20px;font-weight:600;letter-spacing:-0.5px">${calYear}年${monthNames[calMonth]}</div>
+      <button onclick="calNext()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);padding:4px 10px;">▶</button>
+    </div>`;
+
+    // 星期头
+    const weekDays = ['日','一','二','三','四','五','六'];
+    h += `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px;">`;
+    weekDays.forEach(d => {
+      h += `<div style="text-align:center;font-size:12px;font-family:var(--sans);color:var(--text3);padding:4px 0">${d}</div>`;
+    });
+    h += `</div>`;
+
+    // 日历格子
+    h += `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">`;
+
+    // 空白格
+    for (let i = 0; i < firstDay; i++) {
+      h += `<div></div>`;
+    }
+
+    // 日期格
+    for (let d = 1; d <= daysInMonth; d++) {
+      const count = dayCounts[d] || 0;
+      const isToday = calYear===todayYear && calMonth===todayMonth && d===todayDate;
+      const bg = heatColor(count);
+      const tc = textColor(count);
+      const border = isToday ? '2px solid rgba(139,92,246,0.8)' : '2px solid transparent';
+
+      h += `<div style="
+        aspect-ratio:1;
+        background:${bg};
+        border-radius:10px;
+        border:${border};
+        display:flex;
+        flex-direction:column;
+        align-items:center;
+        justify-content:center;
+        cursor:default;
+      ">
+        <div style="font-size:15px;font-weight:${isToday?'700':'400'};color:${tc}">${d}</div>
+        ${count ? `<div style="font-size:9px;color:${tc};opacity:0.8;font-family:var(--sans)">${count}</div>` : ''}
+      </div>`;
+    }
+
+    h += `</div>`;
+
+    // 图例
+    h += `<div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:16px;">
+      <span style="font-size:11px;font-family:var(--sans);color:var(--text3)">少</span>
+      ${['0.06','0.15','0.30','0.50','0.70','0.90'].map(o =>
+        `<div style="width:16px;height:16px;border-radius:4px;background:rgba(139,92,246,${o})"></div>`
+      ).join('')}
+      <span style="font-size:11px;font-family:var(--sans);color:var(--text3)">多</span>
+    </div>`;
+
+    h += `</div>`;
+    document.getElementById('calendarContent').innerHTML = h;
+  } catch(e) {
+    document.getElementById('calendarContent').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
+  }
+}
+
+function calPrev() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  loadCalendar();
+}
+
+function calNext() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  loadCalendar();
+}
+
 // ── 设置 ──
 async function loadSettings() {
   document.getElementById('settingUrl').textContent = SB.url;
   try {
-    const [m,k,l]=await Promise.all([api('memories',{select:'id',limit:9999}),api('knowledge',{select:'id',limit:9999}),api('daily_log',{select:'id',limit:9999})]);
-    document.getElementById('sMem').textContent=m?.length||0;
-    document.getElementById('sKnw').textContent=k?.length||0;
-    document.getElementById('sLog').textContent=l?.length||0;
+    const [m,k,l,s] = await Promise.all([
+      api('memories',{select:'id',limit:9999}),
+      api('knowledge',{select:'id',limit:9999}),
+      api('daily_log',{select:'id',limit:9999}),
+      api('sessions',{select:'id',limit:9999})
+    ]);
+    document.getElementById('sMem').textContent = m?.length||0;
+    document.getElementById('sKnw').textContent = k?.length||0;
+    document.getElementById('sLog').textContent = l?.length||0;
+    document.getElementById('sSes').textContent = s?.length||0;
   } catch(e){}
+
+  // 加载会话历史
+  try {
+    const sessions = await api('sessions', { order:'started_at.desc', limit:20 });
+    const el = document.getElementById('sessionList');
+    if (!sessions || !sessions.length) {
+      el.innerHTML = '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:12px 4px">还没有会话记录</div>';
+      return;
+    }
+    let h = '<div class="card-group">';
+    sessions.forEach(s => {
+      const start = new Date(s.started_at);
+      const bjtStart = new Date(start.getTime() + 8*3600*1000);
+      const dateStr = bjtStart.toISOString().slice(0,10);
+      const timeStr = bjtStart.toISOString().slice(11,16);
+      const gap = s.day_gap > 0 ? `· 距上次 ${s.day_gap} 天` : '';
+      const dur = s.duration_minutes ? `· ${s.duration_minutes} 分钟` : '';
+      h += `<div class="row" style="cursor:default">
+        <div class="row-main">
+          <div class="row-title">${dateStr} ${timeStr} 北京时间</div>
+          <div class="row-sub">${gap} ${dur} ${s.note||''}</div>
+        </div>
+      </div>`;
+    });
+    h += '</div>';
+    el.innerHTML = h;
+  } catch(e) {
+    document.getElementById('sessionList').innerHTML = '<div style="color:var(--text3);font-size:13px;padding:12px 4px">加载失败</div>';
+  }
 }
 
 // ── 启动 ──
