@@ -1396,8 +1396,8 @@ async function openArchive(id) {
     </div>`;
 
     document.getElementById('archiveDetailContent').innerHTML = h;
+    setTimeout(() => { const t = document.getElementById('arcNote'); if(t) autoResize(t); loadScratchForArc(id); }, 100);
   } catch(e) {
-    setTimeout(() => { const t = document.getElementById('arcNote'); if(t) autoResize(t); }, 80);
     document.getElementById('archiveDetailContent').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
   }
 }
@@ -1703,17 +1703,17 @@ async function loadScratchForArc(arcId) {
     const items = res.ok ? await res.json() : [];
     const el = document.getElementById('si_' + arcId.replace(/-/g,'_'));
     if (!el) return;
-    if (!items.length) { el.innerHTML = ''; return; }
+    if (!items.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:4px 0">还没有便签</div>'; return; }
     el.innerHTML = items.map(s => {
       const bjt = new Date(new Date(s.created_at).getTime() + 8*3600*1000);
       const t = bjt.toISOString().slice(5,16).replace('T',' ');
       return `<div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:8px;position:relative">
         <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;padding-right:40px">${s.content}</div>
         <div style="font-size:11px;font-family:var(--sans);color:var(--text3);margin-top:4px">${t}</div>
-        <button onclick="deleteScratch('${s.id}','${arcId}')" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer;font-family:var(--sans)">删除</button>
+        <button data-sid="${s.id}" data-aid="${arcId}" onclick="deleteScratch(this.dataset.sid,this.dataset.aid)" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer">删除</button>
       </div>`;
     }).join('');
-  } catch(e) {}
+  } catch(e) { console.error('scratch load error', e); }
 }
 
 async function addScratchToArc(arcId) {
