@@ -1697,7 +1697,10 @@ let SCRATCH = [];
 // 归档详情里的便签
 async function loadScratchForArc(arcId) {
   try {
-    const items = await api('scratch', { filter:`archive_id=eq.${arcId}`, order:'created_at.asc', limit:50 }) || [];
+    const res = await fetch(`${SB.url}/rest/v1/scratch?archive_id=eq.${arcId}&order=created_at.asc&limit=50`, {
+      headers: { 'apikey': SB.key, 'Authorization': `Bearer ${SB.key}` }
+    });
+    const items = res.ok ? await res.json() : [];
     const el = document.getElementById('scratchItems_' + arcId);
     if (!el) return;
     if (!items.length) { el.innerHTML = ''; return; }
