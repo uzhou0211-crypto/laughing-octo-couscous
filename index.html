@@ -1575,28 +1575,42 @@ function renderLetters() {
 
     const isUser = m.author === 'user';
     const unread = m.author === 'ai' && !m.read_by_user;
+    const mid = m.id;
 
     if (isUser) {
-      // 用户消息——右对齐，蓝色气泡
+      // 用户消息——右对齐，蓝色气泡，长按撤回
       h += `<div style="display:flex;justify-content:flex-end;align-items:flex-end;gap:6px">
-        <div style="font-size:11px;font-family:var(--sans);color:var(--text3);flex-shrink:0">${timeStr}</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+          <div style="font-size:11px;font-family:var(--sans);color:var(--text3)">${timeStr}</div>
+          <button onclick="recallLetter('${mid}')" style="background:none;border:none;font-size:10px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:0">撤回</button>
+        </div>
         <div style="max-width:72%;background:#007aff;color:white;padding:10px 14px;border-radius:18px 18px 4px 18px;font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word">${m.content}</div>
       </div>`;
     } else {
-      // AI消息——左对齐
       const isThinking = m.content.startsWith('[thinking]');
       const displayContent = isThinking ? m.content.replace('[thinking]', '').trim() : m.content;
-      const bubbleBg = isThinking ? 'var(--bg3)' : 'var(--card)';
-      const textColor = isThinking ? 'var(--text3)' : 'var(--text)';
-      const fontSize = isThinking ? '13px' : '15px';
 
-      h += `<div style="display:flex;justify-content:flex-start;align-items:flex-end;gap:6px">
-        <div style="max-width:72%;background:${bubbleBg};border:1px solid var(--sep);color:${textColor};padding:10px 14px;border-radius:18px 18px 18px 4px;font-size:${fontSize};line-height:1.5;white-space:pre-wrap;word-break:break-word;font-style:${isThinking?'italic':'normal'}">${displayContent}</div>
-        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex-shrink:0">
-          <div style="font-size:11px;font-family:var(--sans);color:var(--text3)">${timeStr}</div>
-          ${unread ? '<div style="width:8px;height:8px;border-radius:50%;background:#ff3b30;margin-left:2px"></div>' : ''}
-        </div>
-      </div>`;
+      if (isThinking) {
+        // 思考链——折叠样式
+        h += `<div style="display:flex;justify-content:flex-start;align-items:flex-start;gap:6px;margin-bottom:2px">
+          <details style="max-width:72%">
+            <summary style="font-size:12px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 10px;background:var(--bg2);border-radius:12px;list-style:none;display:flex;align-items:center;gap:4px">
+              <span>💭</span><span>思考过程</span>
+            </summary>
+            <div style="margin-top:6px;background:var(--bg2);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--text3);line-height:1.6;white-space:pre-wrap;word-break:break-word;font-style:italic">${displayContent}</div>
+          </details>
+          <div style="font-size:11px;font-family:var(--sans);color:var(--text3);flex-shrink:0;padding-top:6px">${timeStr}</div>
+        </div>`;
+      } else {
+        // 普通AI消息——白色实心气泡
+        h += `<div style="display:flex;justify-content:flex-start;align-items:flex-end;gap:6px">
+          <div style="max-width:72%;background:#ffffff;color:#111111;padding:10px 14px;border-radius:18px 18px 18px 4px;font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 3px rgba(0,0,0,0.1)">${displayContent}</div>
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex-shrink:0">
+            <div style="font-size:11px;font-family:var(--sans);color:var(--text3)">${timeStr}</div>
+            ${unread ? '<div style="width:8px;height:8px;border-radius:50%;background:#ff3b30;margin-left:2px"></div>' : ''}
+          </div>
+        </div>`;
+      }
     }
   });
 
@@ -1606,6 +1620,16 @@ function renderLetters() {
   // 滚到底部
   el.scrollTop = el.scrollHeight;
   window.scrollTo(0, document.body.scrollHeight);
+}
+
+async function recallLetter(id) {
+  if (!confirm('撤回这条消息？')) return;
+  try {
+    await rm('messages', id);
+    LETTERS = LETTERS.filter(m => m.id !== id);
+    renderLetters();
+    toast('已撤回');
+  } catch(e) { toast('撤回失败'); }
 }
 
 async function sendLetter() {
