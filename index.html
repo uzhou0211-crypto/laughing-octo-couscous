@@ -992,7 +992,7 @@ async function openKnw(id) {
   const k=KNW.find(x=>x.id===id); if (!k) return;
 
   let cmts = [];
-  try { cmts = await api('comments', { filter:'memory_id=eq.'+id, order:'created_at.asc', limit:100 }) || []; } catch(e) {}
+  try { cmts = await api('comments', { filter:'knowledge_id=eq.'+id, order:'created_at.asc', limit:100 }) || []; } catch(e) {}
 
   let cmtHtml = '';
   cmts.forEach((c, i) => {
@@ -1049,7 +1049,7 @@ async function submitKnwCmt(knwId) {
   try {
     await api('comments', {
       method: 'POST',
-      body: { memory_id: knwId, author: 'user', content: txt, read_by_ai: false, read_by_you: true }
+      body: { knowledge_id: knwId, author: 'user', content: txt, read_by_ai: false, read_by_you: true }
     });
     toast('已回复');
     openKnw(knwId);
