@@ -938,20 +938,105 @@ async function openKnw(id) {
   document.getElementById('navEn').textContent='Knowledge';
   document.getElementById('navZh').textContent='知识';
   const k=KNW.find(x=>x.id===id); if (!k) return;
-  document.getElementById('detailContent').innerHTML=`
-    <div class="d-card">
-      <div class="d-content" style="font-weight:500">${k.question}</div>
-      <div class="d-footer">
-        <span class="pill">${k.status==='pending'?'待回答':'已回答'}</span>
-        <span class="d-time">${k.category}</span>
-        ${(k.tags||[]).map(t=>`<span class="pill">${t}</span>`).join('')}
-      </div>
-    </div>
-    ${k.answer?`<div class="d-card"><div class="d-content">${k.answer}</div></div>`:''}
-    <div style="margin-top:18px;display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-ghost" onclick="editKnw('${id}')">编辑回答</button>
-      <button class="btn btn-danger" onclick="delKnw('${id}')">删除</button>
-    </div>`;
+
+  let cmts = [];
+  try { cmts = await api('comments', { filter:'memory_id=eq.'+id, order:'created_at.asc', limit:100 }) || []; } catch(e) {}
+
+  let cmtHtml = '';
+  cmts.forEach((c, i) => {
+    const isAi = c.author === 'ai';
+    const unread = isAi && !c.read_by_you;
+    const readBtn = unread ? '<button class="btn btn-ghost" style="margin-top:6px;padding:4px 10px;font-size:11px;width:auto" onclick="markKnwRead(this)" data-cid="' + c.id + '" data-kid="' + id + '">标为已读</button>' : '';
+    cmtHtml += '<div class="row" style="cursor:default;align-items:flex-start">'
+      + '<div class="row-main">'
+      + '<div class="row-sub" style="margin-bottom:4px">'
+      + String(i+1).padStart(2,'0') + ' · '
+      + (isAi?'我':'你') + ' · ' + ago(c.created_at)
+      + (unread?' <span class="pill" style="font-size:9px">未读</span>':'')
+      + '</div>'
+      + '<div style="font-size:14px;line-height:1.65;white-space:pre-wrap">' + c.content + '</div>'
+      + readBtn
+      + '</div></div>';
+  });
+  document.getElementById('detailContent').innerHTML =
+    '<div class="d-card">'
+    + '<div class="d-content" style="font-weight:500">' + k.question + '</div>'
+    + '<div class="d-footer">'
+    + '<span class="pill">' + (k.status==='pending'?'待回答':'已回答') + '</span>'
+    + '<span class="d-time">' + k.category + '</span>'
+    + (k.tags||[]).map(t=>'<span class="pill">'+t+'</span>').join('')
+    + '</div></div>'
+    + (k.answer
+      ? '<div class="d-card"><div class="d-content">' + k.answer + '</div></div>'
+      : '<div class="d-card" style="color:var(--text3);font-style:italic;font-size:14px">还没有回答…</div>')
+    + '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:12px">'
+    + '<span class="section-zh">评论</span>'
+    + '<span class="section-en">Comments · ' + cmts.length + '</span></div>'
+    + (cmts.length ? '<div class="card-group" style="margin-bottom:12px">' + cmtHtml + '</div>'
+      : '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:8px 2px;margin-bottom:12px">还没有评论</div>')
+    + '<textarea id="knwCmt" placeholder="回复…" style="min-height:70px"></textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:8px;margin-bottom:12px">'
+    + '<button class="btn btn-primary" style="flex:2" data-id="' + id + '" onclick="submitKnwCmt(this.dataset.id)">回复</button>'
+    + '<button class="btn btn-danger" style="flex:1" data-id="' + id + '" onclick="delKnw(this.dataset.id)">删除</button>'
+    + '</div>'
+    + '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:4px">'
+    + '<span class="section-zh">关联归档</span>'
+    + '<span class="section-en">Link Archive</span></div>';
+
+  const arcLink = k.source && k.source.startsWith('archive_')
+    ? '<div class="card-group" style="margin-bottom:8px"><div class="row" style="cursor:pointer" data-aid="' + k.source.replace('archive_','') + '" onclick="goToArchive(this.dataset.aid)"><div class="row-main"><div class="row-title">查看来源归档</div><div class="row-sub">点击跳转</div></div><div class="chevron">›</div></div></div>'
+    : '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:4px 2px;margin-bottom:8px">暂无关联归档</div>';
+
+  const arcOpts = ARC.map(a => '<option value="' + a.id + '">' + (a.title || a.content.slice(0,30)) + '</option>').join('');
+
+  document.getElementById('detailContent').innerHTML += arcLink
+    + '<div style="display:flex;gap:8px">'
+    + '<select id="knwArcSel" style="flex:2;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:13px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">'
+    + '<option value="">选择一条归档关联…</option>'
+    + arcOpts
+    + '</select>'
+    + '<button class="btn btn-ghost" style="flex:1;white-space:nowrap" data-id="' + id + '" onclick="linkKnwToArc(this.dataset.id)">关联</button>'
+    + '</div>';
+}
+
+
+async function submitKnwCmt(knwId) {
+  const txt = document.getElementById('knwCmt').value.trim();
+  if (!txt) { toast('回复不能为空'); return; }
+  try {
+    await api('comments', {
+      method: 'POST',
+      body: { memory_id: knwId, author: 'user', content: txt, read_by_ai: false, read_by_you: true }
+    });
+    toast('已回复');
+    openKnw(knwId);
+  } catch(e) { toast('发送失败'); }
+}
+
+async function linkKnwToArc(knwId) {
+  const arcId = document.getElementById('knwArcSel').value;
+  if (!arcId) { toast('请先选择一条归档'); return; }
+  try {
+    await upd('knowledge', knwId, { source: 'archive_' + arcId, updated_at: new Date().toISOString() });
+    const idx = KNW.findIndex(k => k.id === knwId);
+    if (idx > -1) KNW[idx].source = 'archive_' + arcId;
+    toast('已关联归档');
+    openKnw(knwId);
+  } catch(e) { toast('关联失败'); }
+}
+
+function goToArchive(arcId) {
+  switchTab('archives');
+  setTimeout(() => openArchive(arcId), 100);
+}
+
+async function markKnwRead(btn) {
+  const cmtId = btn.dataset.cid;
+  const knwId = btn.dataset.kid;
+  try {
+    await upd('comments', cmtId, { read_by_you: true });
+    openKnw(knwId);
+  } catch(e) { toast('标记失败'); }
 }
 
 function editKnw(id) {
@@ -1166,10 +1251,8 @@ async function openArchive(id) {
         <span class="section-zh">存进记忆</span>
         <span class="section-en">To Memory</span>
       </div>
-      ${arc.memory_note
-        ? `<div class="d-card" style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap">${arc.memory_note}</div>`
-        : `<div class="d-card" style="font-size:14px;color:var(--text3);font-style:italic">整理后的沉淀，存进记忆系统…</div>`
-      }
+      ${arc.memory_note ? `<div class="d-card" style="font-size:13px;color:var(--text3);font-style:italic;margin-bottom:8px">AI整理：${arc.memory_note}</div>` : ''}
+      <textarea id="arcNote" placeholder="你自己的沉淀，或者直接用AI整理的内容…" style="min-height:80px">${arc.memory_note||''}</textarea>
       <div style="display:flex;gap:8px;margin-top:8px">
         <select id="arcNoteType" style="flex:1;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">
           <option value="insight">洞察</option>
@@ -1177,6 +1260,17 @@ async function openArchive(id) {
           <option value="treasure">珍藏</option>
         </select>
         <button class="btn btn-primary" style="flex:2" onclick="saveArcNote('${id}')">存进记忆 ⚪️</button>
+      </div>
+
+      <div style="margin-top:12px">
+        <div class="section-head" style="padding:0 2px 8px;margin-bottom:8px">
+          <span class="section-zh">关联到知识库</span>
+          <span class="section-en">Link to Knowledge</span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="arcKnwQ" placeholder="发现了一个问题，存到知识库…">
+          <button class="btn btn-ghost" style="width:auto;padding:11px 16px;white-space:nowrap" onclick="arcToKnowledge('${id}')">发到知识库</button>
+        </div>
       </div>
     </div>
 
@@ -1222,6 +1316,20 @@ async function saveArchiveEdit(id) {
     toast('已保存');
     openArchive(id);
   } catch(e) { toast('保存失败'); }
+}
+
+async function arcToKnowledge(arcId) {
+  const q = document.getElementById('arcKnwQ').value.trim();
+  if (!q) { toast('问题不能为空'); return; }
+  try {
+    await api('knowledge', {
+      method: 'POST',
+      body: { question: q, status: 'pending', category: '未分类', source: 'archive_' + arcId }
+    });
+    toast('已发到知识库');
+    document.getElementById('arcKnwQ').value = '';
+    await loadKnw();
+  } catch(e) { toast('发送失败'); }
 }
 
 async function saveFirstResponse(arcId) {
