@@ -1299,8 +1299,7 @@ async function openArchive(id) {
         <span class="section-zh">存进记忆</span>
         <span class="section-en">To Memory</span>
       </div>
-      ${arc.memory_note ? `<div class="d-card" style="font-size:13px;color:var(--text3);font-style:italic;margin-bottom:8px">AI整理：${arc.memory_note}</div>` : ''}
-      <textarea id="arcNote" placeholder="你自己的沉淀，或者直接用AI整理的内容…" style="min-height:80px">${arc.memory_note||''}</textarea>
+      <textarea id="arcNote" placeholder="整理后的沉淀，存进记忆系统…" style="min-height:80px"></textarea>
       <div style="display:flex;gap:8px;margin-top:8px">
         <select id="arcNoteType" style="flex:1;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">
           <option value="insight">洞察</option>
