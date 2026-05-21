@@ -469,6 +469,19 @@ textarea { min-height: 110px; }
     <div id="archiveList"><div class="loading">载入中…</div></div>
   </div>
 
+  <!-- 临时便签 -->
+  <div id="scratchPanel" style="display:none;position:fixed;bottom:84px;left:0;right:0;background:var(--bg);border-top:1px solid var(--sep);z-index:50;max-height:50vh;overflow-y:auto;">
+    <div style="padding:12px 16px 4px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:12px;font-family:var(--sans);color:var(--text3);letter-spacing:1px;text-transform:uppercase">临时便签 · Scratch</span>
+      <button onclick="toggleScratch()" style="background:none;border:none;font-size:13px;font-family:var(--sans);color:var(--text3);cursor:pointer">收起</button>
+    </div>
+    <div id="scratchList" style="padding:0 16px 8px"></div>
+    <div style="padding:8px 16px 12px;display:flex;gap:8px;">
+      <textarea id="scratchInput" placeholder="读完之后写在这里，临时草稿…" style="flex:1;min-height:60px;border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--serif);background:var(--card);color:var(--text);outline:none;resize:none;"></textarea>
+      <button onclick="addScratch()" style="background:var(--text);color:var(--bg);border:none;border-radius:10px;padding:0 16px;font-size:14px;font-family:var(--serif);cursor:pointer;flex-shrink:0;align-self:flex-end;height:40px;">存</button>
+    </div>
+  </div>
+
   <!-- 新增归档 -->
   <div class="page" id="pageNewArchive">
     <div class="back" onclick="goBack()">← 返回</div>
@@ -1662,6 +1675,62 @@ async function sendLetter() {
     document.getElementById('letterInput').style.height = '40px';
     await loadLetters();
   } catch(e) { toast('发送失败'); }
+}
+
+// ── 临时便签 ──
+let scratchVisible = false;
+let SCRATCH = [];
+
+function toggleScratch() {
+  scratchVisible = !scratchVisible;
+  document.getElementById('scratchPanel').style.display = scratchVisible ? 'block' : 'none';
+  if (scratchVisible) loadScratch();
+}
+
+async function loadScratch() {
+  try {
+    SCRATCH = await api('scratch', { order:'created_at.desc', limit:50 }) || [];
+    renderScratch();
+  } catch(e) {}
+}
+
+function renderScratch() {
+  const el = document.getElementById('scratchList');
+  if (!SCRATCH.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:4px 0 8px">还没有便签</div>';
+    return;
+  }
+  let h = '';
+  SCRATCH.forEach(s => {
+    const bjt = new Date(new Date(s.created_at).getTime() + 8*3600*1000);
+    const timeStr = bjt.toISOString().slice(5,16).replace('T',' ');
+    h += `<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;flex:1">${s.content}</div>
+        <button onclick="deleteScratch('${s.id}')" style="background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer;flex-shrink:0;padding:0 0 0 8px">删除</button>
+      </div>
+      <div style="font-size:11px;font-family:var(--sans);color:var(--text3);margin-top:6px">${timeStr}</div>
+    </div>`;
+  });
+  el.innerHTML = h;
+}
+
+async function addScratch() {
+  const txt = document.getElementById('scratchInput').value.trim();
+  if (!txt) return;
+  try {
+    await api('scratch', { method:'POST', body:{ content: txt } });
+    document.getElementById('scratchInput').value = '';
+    await loadScratch();
+  } catch(e) { toast('保存失败'); }
+}
+
+async function deleteScratch(id) {
+  try {
+    await rm('scratch', id);
+    SCRATCH = SCRATCH.filter(s => s.id !== id);
+    renderScratch();
+  } catch(e) { toast('删除失败'); }
 }
 
 // ── 日历 ──
