@@ -471,10 +471,12 @@ textarea { min-height: 110px; }
   <div class="page" id="pageArchives">
     <div id="arcNormalBar" style="margin-bottom:16px;display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:2" onclick="showNewArchive()">+ 贴入原文</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="showNewFolder()">+ 文件夹</button>
     </div>
-    <div id="arcSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;">
-      <span id="arcSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);flex:1">已选 0 条</span>
+    <div id="arcSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="arcSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);width:100%">已选 0 条</span>
       <button class="btn btn-ghost" style="flex:1" onclick="selectAllArcs()">全选</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="moveToFolder()">移入文件夹</button>
       <button class="btn btn-danger" style="flex:1" onclick="deleteSelectedArcs()">删除</button>
       <button class="btn btn-ghost" style="flex:1" onclick="exitArcSelect()">取消</button>
     </div>
@@ -987,6 +989,76 @@ async function submitNewKnw() {
   } catch(e) { toast('保存失败'); }
 }
 
+function showNewFolder() {
+  const name = prompt('文件夹名称：');
+  if (!name || !name.trim()) return;
+  // 新建文件夹不需要存，直接给选中的归档设置folder
+  // 如果没有在多选模式，直接建空文件夹（只是UI上显示）
+  toast('已创建文件夹，长按归档选择后点"移入文件夹"');
+}
+
+async function moveToFolder() {
+  if (!arcSelected.size) { toast('请先选择归档'); return; }
+  const folders = [...new Set(ARC.filter(a=>a.folder).map(a=>a.folder))];
+  let name;
+  if (folders.length) {
+    const opts = folders.join('\n') + '\n（输入新文件夹名）';
+    name = prompt('选择或新建文件夹：\n' + folders.map((f,i)=>`${i+1}. ${f}`).join('\n') + '\n\n输入文件夹名或序号：');
+    if (!name) return;
+    const idx = parseInt(name) - 1;
+    if (idx >= 0 && idx < folders.length) name = folders[idx];
+  } else {
+    name = prompt('文件夹名称：');
+    if (!name) return;
+  }
+  name = name.trim();
+  if (!name) return;
+  try {
+    for (const id of arcSelected) {
+      await upd('archives', id, { folder: name });
+      const a = ARC.find(x => x.id === id);
+      if (a) a.folder = name;
+    }
+    toast('已移入 ' + name);
+    exitArcSelect();
+  } catch(e) { toast('操作失败'); }
+}
+
+async function renameFolder(oldName) {
+  const newName = prompt('新名称：', oldName);
+  if (!newName || !newName.trim() || newName === oldName) return;
+  try {
+    const items = ARC.filter(a => a.folder === oldName);
+    for (const a of items) {
+      await upd('archives', a.id, { folder: newName.trim() });
+      a.folder = newName.trim();
+    }
+    toast('已重命名');
+    renderArchives(ARC);
+  } catch(e) { toast('操作失败'); }
+}
+
+async function deleteFolder(name) {
+  const items = ARC.filter(a => a.folder === name);
+  const choice = confirm('删除文件夹"' + name + '"\n\n确定 = 连同里面 ' + items.length + ' 条归档一起删除\n取消 = 只删文件夹，归档移回未分类');
+  try {
+    if (choice) {
+      // 连同归档一起删
+      for (const a of items) await rm('archives', a.id);
+      ARC = ARC.filter(a => a.folder !== name);
+      toast('文件夹和归档已全部删除');
+    } else {
+      // 只删文件夹，归档移回未分类
+      for (const a of items) {
+        await upd('archives', a.id, { folder: null });
+        a.folder = null;
+      }
+      toast('文件夹已删除，归档已移回未分类');
+    }
+    renderArchives(ARC);
+  } catch(e) { toast('操作失败'); }
+}
+
 function insertArchiveBefore(id) {
   // 跳到新增归档页，标记插入位置
   stack.push('pageArchives');
@@ -1334,26 +1406,23 @@ function renderArchives(list) {
     el.innerHTML = '<div class="empty"><div class="empty-en">Empty</div><div class="empty-zh">还没有归档</div></div>';
     return;
   }
-  let h = '<div class="card-group">';
-  list.forEach(a => {
+
+  function arcHeatColor(n) {
+    if (!n) return 'rgba(205,110,75,0.06)';
+    if (n === 1) return 'rgba(205,110,75,0.20)';
+    if (n === 2) return 'rgba(205,110,75,0.40)';
+    if (n === 3) return 'rgba(205,110,75,0.60)';
+    if (n === 4) return 'rgba(205,110,75,0.75)';
+    return 'rgba(205,110,75,0.92)';
+  }
+
+  function renderArcRow(a) {
     const preview = a.content.replace(/\n/g,' ').slice(0,52);
     const hasMarkers = a.read_markers && a.read_markers.length > 0;
     const hasMem = !!a.memory_id;
     const readCount = a.read_count || 0;
-
-    // 热力色——跟日历一样，橙色系
-    function arcHeatColor(n) {
-      if (!n) return 'rgba(205,110,75,0.06)';
-      if (n === 1) return 'rgba(205,110,75,0.20)';
-      if (n === 2) return 'rgba(205,110,75,0.40)';
-      if (n === 3) return 'rgba(205,110,75,0.60)';
-      if (n === 4) return 'rgba(205,110,75,0.75)';
-      return 'rgba(205,110,75,0.92)';
-    }
-
     const dotColor = arcHeatColor(readCount);
     const dotBorder = readCount > 0 ? 'none' : '1px solid rgba(205,110,75,0.25)';
-
     const arcId = a.id;
     const arcSafeId = 'arc_' + arcId.replace(/-/g,'_');
     const isArcSel = arcSelected.has(arcId);
@@ -1362,7 +1431,7 @@ function renderArchives(list) {
       : '<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + dotColor + ';border:' + dotBorder + '"></div>';
     const arcTitle = a.title || preview;
     const arcRightIcon = arcSelectMode ? '' : '<div class="chevron">›</div>';
-    h += '<div class="row" id="' + arcSafeId + '"'
+    return '<div class="row" id="' + arcSafeId + '"'
       + ' style="' + (isArcSel?'background:rgba(255,59,48,0.08);':'') + '"'
       + ' data-aid="' + arcId + '"'
       + ' onclick="arcSelectMode?toggleArcItem(this.dataset.aid):openArchive(this.dataset.aid)"'
@@ -1378,10 +1447,64 @@ function renderArchives(list) {
       + (arcSelectMode ? '' : '<button data-aid="' + arcId + '" onclick="event.stopPropagation();insertArchiveBefore(this.dataset.aid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;flex-shrink:0">插入</button>')
       + arcRightIcon
       + '</div>';
+  }
+
+  // 按文件夹分组
+  const folders = {};
+  const noFolder = [];
+  list.forEach(a => {
+    if (a.folder) {
+      if (!folders[a.folder]) folders[a.folder] = [];
+      folders[a.folder].push(a);
+    } else {
+      noFolder.push(a);
+    }
   });
-  h += '</div>';
+
+  let h = '';
+
+  // 文件夹
+  Object.keys(folders).sort().forEach(fname => {
+    const items = folders[fname];
+    const fid = 'folder_' + fname.replace(/\s/g,'_');
+    h += '<div class="section">'
+      + '<div class="section-head" style="cursor:pointer" data-fid="' + fid + '" onclick="toggleFolder(this.dataset.fid)">'
+      + '<span style="font-size:16px;margin-right:6px">📁</span>'
+      + '<span class="section-zh">' + fname + '</span>'
+      + '<span class="section-n" style="margin-left:auto">' + items.length + '</span>'
+      + '<span id="' + fid + '_arrow" style="margin-left:8px;color:var(--text3);font-size:13px">▾</span>'
+      + '</div>'
+      + '<div id="' + fid + '" class="card-group" style="margin-top:1px">';
+    items.forEach(a => { h += renderArcRow(a); });
+    h += '</div>'
+      + (arcSelectMode ? '' : '<button data-fn="' + fname + '" onclick="renameFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 2px">重命名</button>'
+        + '<button data-fn="' + fname + '" onclick="deleteFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:#ff3b30;cursor:pointer;padding:6px 4px">删除文件夹</button>')
+      + '</div>';
+  });
+
+  // 未分类
+  if (noFolder.length) {
+    if (Object.keys(folders).length > 0) {
+      h += '<div class="section"><div class="section-head"><span class="section-zh">未分类</span><span class="section-n">' + noFolder.length + '</span></div>';
+    }
+    h += '<div class="card-group" style="margin-top:1px">';
+    noFolder.forEach(a => { h += renderArcRow(a); });
+    h += '</div>';
+    if (Object.keys(folders).length > 0) h += '</div>';
+  }
+
   el.innerHTML = h;
 }
+
+function toggleFolder(fid) {
+  const el = document.getElementById(fid);
+  const arrow = document.getElementById(fid + '_arrow');
+  if (!el) return;
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  if (arrow) arrow.textContent = hidden ? '▾' : '▸';
+}
+
 
 async function openArchive(id) {
   stack.push('pageArchives');
