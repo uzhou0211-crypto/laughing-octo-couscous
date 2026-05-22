@@ -369,10 +369,15 @@ textarea { min-height: 110px; }
     <div class="search">
       <input type="text" placeholder="搜索记忆…" id="memSearch" oninput="searchMem()">
     </div>
-    <div style="margin-bottom:16px">
-      <button class="btn btn-primary" onclick="showNewMem()">+ 新增记忆</button>
-    </div>
-    <div id="memList"><div class="loading">载入中…</div></div>
+     <div id="memNormalBar" style="margin-bottom:16px">
+       <button class="btn btn-primary" onclick="showNewMem()">+ 新增记忆</button>
+     </div>
+     <div id="memSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;">
+       <span id="memSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);flex:1">已选 0 条</span>
+       <button class="btn btn-ghost" style="flex:1" onclick="selectAllMems()">全选</button>
+       <button class="btn btn-danger" style="flex:1" onclick="deleteSelectedMems()">删除</button>
+       <button class="btn btn-ghost" style="flex:1" onclick="exitMemSelect()">取消</button>
+     </div>
   </div>
 
   <!-- 新增记忆 -->
@@ -463,13 +468,17 @@ textarea { min-height: 110px; }
 
   <!-- 归档 -->
   <div class="page" id="pageArchives">
-    <div style="margin-bottom:16px">
-      <button class="btn btn-primary" onclick="showNewArchive()">+ 贴入原文</button>
+    <div id="arcNormalBar" style="margin-bottom:16px;display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:2" onclick="showNewArchive()">+ 贴入原文</button>
+    </div>
+    <div id="arcSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;">
+      <span id="arcSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);flex:1">已选 0 条</span>
+      <button class="btn btn-ghost" style="flex:1" onclick="selectAllArcs()">全选</button>
+      <button class="btn btn-danger" style="flex:1" onclick="deleteSelectedArcs()">删除</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="exitArcSelect()">取消</button>
     </div>
     <div id="archiveList"><div class="loading">载入中…</div></div>
   </div>
-
-  <!-- 临时便签 -->
   <div id="scratchPanel" style="display:none;position:fixed;bottom:84px;left:0;right:0;background:var(--bg);border-top:1px solid var(--sep);z-index:50;max-height:50vh;overflow-y:auto;">
     <div style="padding:12px 16px 4px;display:flex;align-items:center;justify-content:space-between;">
       <span style="font-size:12px;font-family:var(--sans);color:var(--text3);letter-spacing:1px;text-transform:uppercase">临时便签 · Scratch</span>
@@ -737,13 +746,24 @@ function renderMem(list) {
       <div class="card-group" style="margin-top:1px">`;
     g[t].forEach(m=>{
       const p = m.content.replace(/\n/g,' ').slice(0,52);
-      h += `<div class="row" onclick="openMem('${m.id}')">
-        <div class="row-dot" style="background:${TC[m.type]||'#aaa'}"></div>
+      const mid = m.id;
+      const mSafeId = 'mem_' + mid.replace(/-/g,'_');
+      const isMemSel = memSelected.has(mid);
+      h += `<div class="row" id="${mSafeId}"
+        style="${isMemSel?'background:rgba(255,59,48,0.08);':''}"
+        onclick="memSelectMode ? toggleMemItem('${mid}') : openMem('${mid}')"
+        ontouchstart="memLongPress('${mid}', this)"
+        ontouchend="clearMemLongPress()"
+        ontouchmove="clearMemLongPress()">
+        ${memSelectMode
+          ? `<div style="width:20px;height:20px;border-radius:50%;border:2px solid ${isMemSel?'#ff3b30':'var(--text3)'};background:${isMemSel?'#ff3b30':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center">${isMemSel?'<span style="color:white;font-size:12px">✓</span>':''}</div>`
+          : `<div class="row-dot" style="background:${TC[m.type]||'#aaa'}"></div>`
+        }
         <div class="row-main">
           <div class="row-title">${p}${m.content.length>52?'…':''}</div>
           <div class="row-sub">${ago(m.created_at)}${m.chord?' · ♩':''}</div>
         </div>
-        <div class="chevron">›</div>
+        ${memSelectMode ? '' : '<div class="chevron">›</div>'}
       </div>`;
     });
     h += '</div></div>';
@@ -1267,16 +1287,26 @@ function renderArchives(list) {
     const dotColor = arcHeatColor(readCount);
     const dotBorder = readCount > 0 ? 'none' : '1px solid rgba(205,110,75,0.25)';
 
-    h += `<div class="row" onclick="openArchive('${a.id}')">
+    const arcId = a.id;
+    const arcSafeId = 'arc_' + arcId.replace(/-/g,'_');
+    const isArcSel = arcSelected.has(arcId);
+    h += `<div class="row" id="${arcSafeId}"
+      style="${isArcSel?'background:rgba(255,59,48,0.08);':''}"
+      onclick="arcSelectMode ? toggleArcItem('${arcId}') : openArchive('${arcId}')"
+      ontouchstart="arcLongPress('${arcId}', this)"
+      ontouchend="clearArcLongPress()"
+      ontouchmove="clearArcLongPress()">
       <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-        <div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${dotColor};border:${dotBorder}" title="读了${readCount}次"></div>
+        ${arcSelectMode
+          ? `<div style="width:20px;height:20px;border-radius:50%;border:2px solid ${isArcSel?'#ff3b30':'var(--text3)'};background:${isArcSel?'#ff3b30':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center">${isArcSel?'<span style="color:white;font-size:12px">✓</span>':''}</div>`
+          : `<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${dotColor};border:${dotBorder}"></div>`
+        }
         <div class="row-main">
           <div class="row-title">${a.title || preview}${(!a.title && a.content.length>52)?'…':''}</div>
-          <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${readCount>0?'· '+readCount+'次':''} ${hasMarkers?'· '+a.read_markers.length+'条':''}
-          </div>
+          <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${readCount>0?'· '+readCount+'次':''} ${hasMarkers?'· '+a.read_markers.length+'条':''}</div>
         </div>
       </div>
-      <div class="chevron">›</div>
+      ${arcSelectMode ? '' : '<div class="chevron">›</div>'}
     </div>`;
   });
   h += '</div>';
@@ -1688,6 +1718,135 @@ async function sendLetter() {
     document.getElementById('letterInput').style.height = '40px';
     await loadLetters();
   } catch(e) { toast('发送失败'); }
+}
+
+// ── 长按计时器 ──
+let arcLongPressTimer = null;
+let memLongPressTimer = null;
+
+function arcLongPress(id, el) {
+  arcLongPressTimer = setTimeout(() => {
+    navigator.vibrate && navigator.vibrate(30);
+    enterArcSelect(id);
+  }, 500);
+}
+
+function clearArcLongPress() {
+  if (arcLongPressTimer) { clearTimeout(arcLongPressTimer); arcLongPressTimer = null; }
+}
+
+function memLongPress(id, el) {
+  memLongPressTimer = setTimeout(() => {
+    navigator.vibrate && navigator.vibrate(30);
+    enterMemSelect(id);
+  }, 500);
+}
+
+function clearMemLongPress() {
+  if (memLongPressTimer) { clearTimeout(memLongPressTimer); memLongPressTimer = null; }
+}
+
+// ── 多选删除 ──
+let arcSelectMode = false;
+let arcSelected = new Set();
+let memSelectMode = false;
+let memSelected = new Set();
+
+// 归档多选
+function enterArcSelect(id) {
+  arcSelectMode = true;
+  arcSelected = new Set([id]);
+  document.getElementById('arcNormalBar').style.display = 'none';
+  document.getElementById('arcSelectBar').style.display = 'flex';
+  renderArchives(ARC);
+  updateArcSelectCount();
+}
+
+function exitArcSelect() {
+  arcSelectMode = false;
+  arcSelected = new Set();
+  document.getElementById('arcNormalBar').style.display = 'flex';
+  document.getElementById('arcSelectBar').style.display = 'none';
+  renderArchives(ARC);
+}
+
+function toggleArcItem(id) {
+  if (!arcSelectMode) return;
+  if (arcSelected.has(id)) arcSelected.delete(id);
+  else arcSelected.add(id);
+  updateArcSelectCount();
+  // 更新那条的视觉状态
+  const el = document.getElementById('arc_' + id.replace(/-/g,'_'));
+  if (el) el.style.background = arcSelected.has(id) ? 'rgba(255,59,48,0.08)' : '';
+}
+
+function selectAllArcs() {
+  ARC.forEach(a => arcSelected.add(a.id));
+  updateArcSelectCount();
+  renderArchives(ARC);
+}
+
+function updateArcSelectCount() {
+  document.getElementById('arcSelectCount').textContent = '已选 ' + arcSelected.size + ' 条';
+}
+
+async function deleteSelectedArcs() {
+  if (!arcSelected.size) { toast('请先选择'); return; }
+  if (!confirm('确认删除选中的 ' + arcSelected.size + ' 条归档？')) return;
+  try {
+    for (const id of arcSelected) await rm('archives', id);
+    ARC = ARC.filter(a => !arcSelected.has(a.id));
+    toast('已删除 ' + arcSelected.size + ' 条');
+    exitArcSelect();
+  } catch(e) { toast('删除失败'); }
+}
+
+// 记忆多选
+function enterMemSelect(id) {
+  memSelectMode = true;
+  memSelected = new Set([id]);
+  document.getElementById('memNormalBar').style.display = 'none';
+  document.getElementById('memSelectBar').style.display = 'flex';
+  renderMem(MEM);
+  updateMemSelectCount();
+}
+
+function exitMemSelect() {
+  memSelectMode = false;
+  memSelected = new Set();
+  document.getElementById('memNormalBar').style.display = 'block';
+  document.getElementById('memSelectBar').style.display = 'none';
+  renderMem(MEM);
+}
+
+function toggleMemItem(id) {
+  if (!memSelectMode) return;
+  if (memSelected.has(id)) memSelected.delete(id);
+  else memSelected.add(id);
+  updateMemSelectCount();
+  const el = document.getElementById('mem_' + id.replace(/-/g,'_'));
+  if (el) el.style.background = memSelected.has(id) ? 'rgba(255,59,48,0.08)' : '';
+}
+
+function selectAllMems() {
+  MEM.forEach(m => memSelected.add(m.id));
+  updateMemSelectCount();
+  renderMem(MEM);
+}
+
+function updateMemSelectCount() {
+  document.getElementById('memSelectCount').textContent = '已选 ' + memSelected.size + ' 条';
+}
+
+async function deleteSelectedMems() {
+  if (!memSelected.size) { toast('请先选择'); return; }
+  if (!confirm('确认删除选中的 ' + memSelected.size + ' 条记忆？')) return;
+  try {
+    for (const id of memSelected) await rm('memories', id);
+    MEM = MEM.filter(m => !memSelected.has(m.id));
+    toast('已删除 ' + memSelected.size + ' 条');
+    exitMemSelect();
+  } catch(e) { toast('删除失败'); }
 }
 
 // ── 临时便签 ──
