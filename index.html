@@ -749,22 +749,25 @@ function renderMem(list) {
       const mid = m.id;
       const mSafeId = 'mem_' + mid.replace(/-/g,'_');
       const isMemSel = memSelected.has(mid);
-      h += `<div class="row" id="${mSafeId}"
-        style="${isMemSel?'background:rgba(255,59,48,0.08);':''}"
-        onclick="memSelectMode ? toggleMemItem('${mid}') : openMem('${mid}')"
-        ontouchstart="memLongPress('${mid}', this)"
-        ontouchend="clearMemLongPress()"
-        ontouchmove="clearMemLongPress()">
-        ${memSelectMode
-          ? `<div style="width:20px;height:20px;border-radius:50%;border:2px solid ${isMemSel?'#ff3b30':'var(--text3)'};background:${isMemSel?'#ff3b30':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center">${isMemSel?'<span style="color:white;font-size:12px">✓</span>':''}</div>`
-          : `<div class="row-dot" style="background:${TC[m.type]||'#aaa'}"></div>`
-        }
-        <div class="row-main">
-          <div class="row-title">${p}${m.content.length>52?'…':''}</div>
-          <div class="row-sub">${ago(m.created_at)}${m.chord?' · ♩':''}</div>
-        </div>
-        ${memSelectMode ? '' : '<div class="chevron">›</div>'}
-      </div>`;
+      const leftIcon = memSelectMode
+        ? '<div style="width:20px;height:20px;border-radius:50%;border:2px solid ' + (isMemSel?'#ff3b30':'var(--text3)') + ';background:' + (isMemSel?'#ff3b30':'transparent') + ';flex-shrink:0;display:flex;align-items:center;justify-content:center">' + (isMemSel?'<span style="color:white;font-size:12px">✓</span>':'') + '</div>'
+        : '<div class="row-dot" style="background:' + (TC[m.type]||'#aaa') + '"></div>';
+      const rightIcon = memSelectMode ? '' : '<div class="chevron">›</div>';
+      const memRow = document.createElement('div');
+      memRow.className = 'row';
+      memRow.id = mSafeId;
+      if (isMemSel) memRow.style.background = 'rgba(255,59,48,0.08)';
+      memRow.setAttribute('ontouchend', 'clearMemLongPress()');
+      memRow.setAttribute('ontouchmove', 'clearMemLongPress()');
+      memRow.innerHTML = leftIcon
+        + '<div class="row-main">'
+        + '<div class="row-title">' + p + (m.content.length>52?'…':'') + '</div>'
+        + '<div class="row-sub">' + ago(m.created_at) + (m.chord?' · ♩':'') + '</div>'
+        + '</div>'
+        + rightIcon;
+      memRow.addEventListener('click', () => memSelectMode ? toggleMemItem(mid) : openMem(mid));
+      memRow.addEventListener('touchstart', () => memLongPress(mid, memRow));
+      h += memRow.outerHTML;
     });
     h += '</div></div>';
   });
@@ -964,15 +967,47 @@ async function submitNewKnw() {
   if (!q) { toast('问题不能为空'); return; }
   const a = document.getElementById('newKnwA').value.trim();
   const cat = document.getElementById('newKnwCat').value;
+  const insertBefore = document.getElementById('pageNewKnw').dataset.insertBefore || null;
   try {
-    await api('knowledge', {
-      method: 'POST',
-      body: { question: q, answer: a, category: cat, status: a ? 'answered' : 'pending', source: 'user' }
-    });
+    // 如果有插入位置，找目标的created_at，把新的时间设到它之前
+    let body = { question: q, answer: a, category: cat, status: a ? 'answered' : 'pending', source: 'user' };
+    if (insertBefore) {
+      const target = KNW.find(k => k.id === insertBefore);
+      if (target) {
+        // 时间比目标早1秒
+        const t = new Date(new Date(target.created_at).getTime() - 1000).toISOString();
+        body.created_at = t;
+      }
+      document.getElementById('pageNewKnw').dataset.insertBefore = '';
+    }
+    await api('knowledge', { method: 'POST', body });
     toast('已保存');
     await loadKnw();
     goBack();
   } catch(e) { toast('保存失败'); }
+}
+
+function insertArchiveBefore(id) {
+  // 跳到新增归档页，标记插入位置
+  stack.push('pageArchives');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageNewArchive').classList.add('active');
+  document.getElementById('navZh').textContent = '插入归档';
+  document.getElementById('newArcTitle').value = '';
+  document.getElementById('newArcContent').value = '';
+  document.getElementById('pageNewArchive').dataset.insertBefore = id;
+}
+
+function insertKnwBefore(id) {
+  // 跳到新增问题页，标记插入位置
+  stack.push('pageKnowledge');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageNewKnw').classList.add('active');
+  document.getElementById('navZh').textContent = '插入问题';
+  document.getElementById('newKnwQ').value = '';
+  document.getElementById('newKnwA').value = '';
+  // 存插入目标id
+  document.getElementById('pageNewKnw').dataset.insertBefore = id;
 }
 
 async function loadKnw() {
@@ -989,12 +1024,34 @@ function renderKnw(list) {
   let h='';
   if (p.length) {
     h+=`<div class="section"><div class="section-head"><span class="section-zh">待回答</span><span class="section-n">${p.length}</span></div><div class="card-group" style="margin-top:1px">`;
-    p.forEach(k=>{h+=`<div class="row" onclick="openKnw('${k.id}')"><div class="row-main"><div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div><div class="row-sub">${k.category} · ${ago(k.created_at)}</div></div><div class="chevron">›</div></div>`;});
+    p.forEach((k,i)=>{
+      h += `<div class="row" data-id="${k.id}" data-mode="knw" onclick="openKnw(this.dataset.id)">
+        <div class="row-main">
+          <div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div>
+          <div class="row-sub">${k.category} · ${ago(k.created_at)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button data-kid="${k.id}" onclick="event.stopPropagation();insertKnwBefore(this.dataset.kid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer">插入</button>
+          <div class="chevron">›</div>
+        </div>
+      </div>`;
+    });
     h+='</div></div>';
   }
   if (a.length) {
     h+=`<div class="section"><div class="section-head"><span class="section-zh">已回答</span><span class="section-n">${a.length}</span></div><div class="card-group" style="margin-top:1px">`;
-    a.forEach(k=>{h+=`<div class="row" onclick="openKnw('${k.id}')"><div class="row-main"><div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div><div class="row-sub">${k.category} · ${ago(k.created_at)}</div></div><div class="chevron">›</div></div>`;});
+    a.forEach((k,i)=>{
+      h += `<div class="row" data-id="${k.id}" onclick="openKnw(this.dataset.id)">
+        <div class="row-main">
+          <div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div>
+          <div class="row-sub">${k.category} · ${ago(k.created_at)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button data-kid="${k.id}" onclick="event.stopPropagation();insertKnwBefore(this.dataset.kid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer">插入</button>
+          <div class="chevron">›</div>
+        </div>
+      </div>`;
+    });
     h+='</div></div>';
   }
   el.innerHTML=h;
@@ -1235,11 +1292,21 @@ async function submitNewArchive() {
   const content = document.getElementById('newArcContent').value.trim();
   if (!content) { toast('原文不能为空'); return; }
   const title = document.getElementById('newArcTitle').value.trim();
-  const memId = document.getElementById('newArcMemId').value.trim() || null;
+  const memId = document.getElementById('newArcMemId') ? document.getElementById('newArcMemId').value.trim() || null : null;
+  const insertBefore = document.getElementById('pageNewArchive').dataset.insertBefore || null;
   try {
+    let body = { content, title, memory_id: memId, author: 'user' };
+    if (insertBefore) {
+      const target = ARC.find(a => a.id === insertBefore);
+      if (target) {
+        const t = new Date(new Date(target.created_at).getTime() - 1000).toISOString();
+        body.created_at = t;
+      }
+      document.getElementById('pageNewArchive').dataset.insertBefore = '';
+    }
     await api('archives', {
       method: 'POST',
-      body: { content, title, memory_id: memId, author: 'user' }
+      body
     });
     // 如果关联了记忆，更新记忆的archive标记
     if (memId) {
@@ -1290,24 +1357,28 @@ function renderArchives(list) {
     const arcId = a.id;
     const arcSafeId = 'arc_' + arcId.replace(/-/g,'_');
     const isArcSel = arcSelected.has(arcId);
-    h += `<div class="row" id="${arcSafeId}"
-      style="${isArcSel?'background:rgba(255,59,48,0.08);':''}"
-      onclick="arcSelectMode ? toggleArcItem('${arcId}') : openArchive('${arcId}')"
-      ontouchstart="arcLongPress('${arcId}', this)"
-      ontouchend="clearArcLongPress()"
-      ontouchmove="clearArcLongPress()">
-      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
-        ${arcSelectMode
-          ? `<div style="width:20px;height:20px;border-radius:50%;border:2px solid ${isArcSel?'#ff3b30':'var(--text3)'};background:${isArcSel?'#ff3b30':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center">${isArcSel?'<span style="color:white;font-size:12px">✓</span>':''}</div>`
-          : `<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${dotColor};border:${dotBorder}"></div>`
-        }
-        <div class="row-main">
-          <div class="row-title">${a.title || preview}${(!a.title && a.content.length>52)?'…':''}</div>
-          <div class="row-sub">${ago(a.created_at)} ${hasMem?'⚪️':''} ${readCount>0?'· '+readCount+'次':''} ${hasMarkers?'· '+a.read_markers.length+'条':''}</div>
-        </div>
-      </div>
-      ${arcSelectMode ? '' : '<div class="chevron">›</div>'}
-    </div>`;
+    const arcLeftIcon = arcSelectMode
+      ? '<div style="width:20px;height:20px;border-radius:50%;border:2px solid ' + (isArcSel?'#ff3b30':'var(--text3)') + ';background:' + (isArcSel?'#ff3b30':'transparent') + ';flex-shrink:0;display:flex;align-items:center;justify-content:center">' + (isArcSel?'<span style="color:white;font-size:12px">✓</span>':'') + '</div>'
+      : '<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + dotColor + ';border:' + dotBorder + '"></div>';
+    const arcTitle = a.title || preview;
+    const arcRightIcon = arcSelectMode ? '' : '<div class="chevron">›</div>';
+    const arcEl = document.createElement('div');
+    arcEl.className = 'row';
+    arcEl.id = arcSafeId;
+    if (isArcSel) arcEl.style.background = 'rgba(255,59,48,0.08)';
+    arcEl.addEventListener('click', () => arcSelectMode ? toggleArcItem(arcId) : openArchive(arcId));
+    arcEl.addEventListener('touchstart', () => arcLongPress(arcId, arcEl));
+    arcEl.addEventListener('touchend', clearArcLongPress);
+    arcEl.addEventListener('touchmove', clearArcLongPress);
+    arcEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'
+      + arcLeftIcon
+      + '<div class="row-main">'
+      + '<div class="row-title">' + arcTitle + ((!a.title && a.content.length>52)?'…':'') + '</div>'
+      + '<div class="row-sub">' + ago(a.created_at) + (hasMem?' ⚪️':'') + (readCount>0?' · '+readCount+'次':'') + (hasMarkers?' · '+a.read_markers.length+'条':'') + '</div>'
+      + '</div></div>'
+      + (arcSelectMode ? '' : '<button data-aid="' + arcId + '" onclick="event.stopPropagation();insertArchiveBefore(this.dataset.aid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;flex-shrink:0">插入</button>')
+      + arcRightIcon;
+    h += arcEl.outerHTML;
   });
   h += '</div>';
   el.innerHTML = h;
