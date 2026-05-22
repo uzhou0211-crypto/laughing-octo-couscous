@@ -753,21 +753,20 @@ function renderMem(list) {
         ? '<div style="width:20px;height:20px;border-radius:50%;border:2px solid ' + (isMemSel?'#ff3b30':'var(--text3)') + ';background:' + (isMemSel?'#ff3b30':'transparent') + ';flex-shrink:0;display:flex;align-items:center;justify-content:center">' + (isMemSel?'<span style="color:white;font-size:12px">✓</span>':'') + '</div>'
         : '<div class="row-dot" style="background:' + (TC[m.type]||'#aaa') + '"></div>';
       const rightIcon = memSelectMode ? '' : '<div class="chevron">›</div>';
-      const memRow = document.createElement('div');
-      memRow.className = 'row';
-      memRow.id = mSafeId;
-      if (isMemSel) memRow.style.background = 'rgba(255,59,48,0.08)';
-      memRow.setAttribute('ontouchend', 'clearMemLongPress()');
-      memRow.setAttribute('ontouchmove', 'clearMemLongPress()');
-      memRow.innerHTML = leftIcon
+      h += '<div class="row" id="' + mSafeId + '"'
+        + ' style="' + (isMemSel?'background:rgba(255,59,48,0.08);':'') + '"'
+        + ' data-mid="' + mid + '"'
+        + ' onclick="memSelectMode?toggleMemItem(this.dataset.mid):openMem(this.dataset.mid)"'
+        + ' ontouchstart="memLongPress(this.dataset.mid,this)"'
+        + ' ontouchend="clearMemLongPress()"'
+        + ' ontouchmove="clearMemLongPress()">'
+        + leftIcon
         + '<div class="row-main">'
         + '<div class="row-title">' + p + (m.content.length>52?'…':'') + '</div>'
         + '<div class="row-sub">' + ago(m.created_at) + (m.chord?' · ♩':'') + '</div>'
         + '</div>'
-        + rightIcon;
-      memRow.addEventListener('click', () => memSelectMode ? toggleMemItem(mid) : openMem(mid));
-      memRow.addEventListener('touchstart', () => memLongPress(mid, memRow));
-      h += memRow.outerHTML;
+        + rightIcon
+        + '</div>';
     });
     h += '</div></div>';
   });
@@ -1362,23 +1361,22 @@ function renderArchives(list) {
       : '<div style="width:10px;height:10px;border-radius:2px;flex-shrink:0;background:' + dotColor + ';border:' + dotBorder + '"></div>';
     const arcTitle = a.title || preview;
     const arcRightIcon = arcSelectMode ? '' : '<div class="chevron">›</div>';
-    const arcEl = document.createElement('div');
-    arcEl.className = 'row';
-    arcEl.id = arcSafeId;
-    if (isArcSel) arcEl.style.background = 'rgba(255,59,48,0.08)';
-    arcEl.addEventListener('click', () => arcSelectMode ? toggleArcItem(arcId) : openArchive(arcId));
-    arcEl.addEventListener('touchstart', () => arcLongPress(arcId, arcEl));
-    arcEl.addEventListener('touchend', clearArcLongPress);
-    arcEl.addEventListener('touchmove', clearArcLongPress);
-    arcEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'
+    h += '<div class="row" id="' + arcSafeId + '"'
+      + ' style="' + (isArcSel?'background:rgba(255,59,48,0.08);':'') + '"'
+      + ' data-aid="' + arcId + '"'
+      + ' onclick="arcSelectMode?toggleArcItem(this.dataset.aid):openArchive(this.dataset.aid)"'
+      + ' ontouchstart="arcLongPress(this.dataset.aid,this)"'
+      + ' ontouchend="clearArcLongPress()"'
+      + ' ontouchmove="clearArcLongPress()">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">'
       + arcLeftIcon
       + '<div class="row-main">'
       + '<div class="row-title">' + arcTitle + ((!a.title && a.content.length>52)?'…':'') + '</div>'
       + '<div class="row-sub">' + ago(a.created_at) + (hasMem?' ⚪️':'') + (readCount>0?' · '+readCount+'次':'') + (hasMarkers?' · '+a.read_markers.length+'条':'') + '</div>'
       + '</div></div>'
       + (arcSelectMode ? '' : '<button data-aid="' + arcId + '" onclick="event.stopPropagation();insertArchiveBefore(this.dataset.aid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;flex-shrink:0">插入</button>')
-      + arcRightIcon;
-    h += arcEl.outerHTML;
+      + arcRightIcon
+      + '</div>';
   });
   h += '</div>';
   el.innerHTML = h;
