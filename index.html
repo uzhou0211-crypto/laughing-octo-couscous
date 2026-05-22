@@ -859,7 +859,7 @@ async function openMem(id) {
   document.getElementById('navZh').textContent = '详情';
   try {
     const [m] = await api('memories',{filter:`id=eq.${id}`,limit:1});
-    const cmts = await api('comments',{filter:`memory_id=eq.${id}`,order:'created_at.asc',limit:50});
+    const cmts = await api('comments',{filter:`memory_id=eq.${id}`,order:'sort_order.asc,created_at.asc',limit:50});
     upd('memories',id,{access_count:(m.access_count||0)+1,last_accessed:new Date().toISOString()});
     let h = '';
     if (m.chord) {
@@ -1213,7 +1213,7 @@ async function openKnw(id) {
   const k=KNW.find(x=>x.id===id); if (!k) return;
 
   let cmts = [];
-  try { cmts = await api('comments', { filter:'knowledge_id=eq.'+id, order:'created_at.asc', limit:100 }) || []; } catch(e) {}
+  try { cmts = await api('comments', { filter:'knowledge_id=eq.'+id, order:'sort_order.asc,created_at.asc', limit:100 }) || []; } catch(e) {}
 
   let cmtHtml = '';
   cmts.forEach((c, i) => {
@@ -2148,13 +2148,17 @@ async function dragDrop(e) {
   try {
     for (let i = 0; i < newRows.length; i++) {
       const rowId = newRows[i].dataset.id;
-      await upd(table, rowId, { sort_order: i * 10 });
-      // 更新本地缓存
+      await fetch(`${SB.url}/rest/v1/${table}?id=eq.${rowId}`, {
+        method: 'PATCH',
+        headers: { 'apikey': SB.key, 'Authorization': `Bearer ${SB.key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sort_order: i * 10 })
+      });
       if (table === 'knowledge') {
         const k = KNW.find(x => x.id === rowId);
         if (k) k.sort_order = i * 10;
       }
     }
+    toast('顺序已保存');
   } catch(ex) { toast('排序保存失败'); }
 }
 
