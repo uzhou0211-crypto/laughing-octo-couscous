@@ -524,7 +524,12 @@ textarea { min-height: 110px; }
 
   <!-- 信 -->
   <div class="page" id="pageLetters">
-    <div id="lettersList" style="padding-bottom:80px"></div>
+    <div id="lettersList"></div>
+  </div>
+
+  <!-- 信对话详情 -->
+  <div class="page" id="pageLetterChat">
+    <div id="letterChatList" style="padding-bottom:80px"></div>
     <div style="position:fixed;bottom:84px;left:0;right:0;background:var(--bg);border-top:1px solid var(--sep);padding:10px 16px;display:flex;gap:8px;z-index:50;">
       <textarea id="letterInput" placeholder="写一封信…" style="flex:1;min-height:40px;max-height:120px;border:1px solid var(--sep);border-radius:18px;padding:10px 14px;font-size:15px;font-family:var(--serif);background:var(--card);color:var(--text);outline:none;resize:none;line-height:1.4;overflow-y:auto;" oninput="autoResize(this)"></textarea>
       <button onclick="sendLetter()" style="background:#007aff;border:none;border-radius:50%;width:36px;height:36px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;align-self:flex-end;margin-bottom:2px;">
@@ -539,12 +544,10 @@ textarea { min-height: 110px; }
   </div>
 
   <!-- 设置 -->
+  <!-- 设置 -->
   <div class="page" id="pageSettings">
     <div class="section">
-      <div class="section-head">
-        <span class="section-zh">连接</span>
-        <span class="section-en">Connection</span>
-      </div>
+      <div class="section-head"><span class="section-zh">连接</span><span class="section-en">Connection</span></div>
       <div class="card-group" style="margin-top:1px">
         <div class="row">
           <div class="row-main">
@@ -558,32 +561,30 @@ textarea { min-height: 110px; }
         </div>
       </div>
     </div>
-     <div class="section">
-       <div class="section-head"><span class="section-zh">清理</span><span class="section-en">Clean Up</span></div>
-       <div class="card-group" style="margin-top:1px">
-         <div class="row" onclick="clearSessions()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空会话记录</div><div class="row-sub">删除sessions全部数据</div></div><div class="chevron">›</div></div>
-         <div class="row" onclick="clearMemories()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空所有记忆</div><div class="row-sub">删除memories全部数据</div></div><div class="chevron">›</div></div>
-         <div class="row" onclick="clearArchives()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空所有归档</div><div class="row-sub">删除archives全部数据</div></div><div class="chevron">›</div></div>
-         <div class="row" onclick="clearKnowledge()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空知识库</div><div class="row-sub">删除knowledge全部数据</div></div><div class="chevron">›</div></div>
-       </div>
-     </div>
     <div class="section">
-      <div class="section-head">
-        <span class="section-zh">数据</span>
-        <span class="section-en">Data</span>
-      </div>
+      <div class="section-head"><span class="section-zh">数据</span><span class="section-en">Data</span></div>
       <div class="card-group" style="margin-top:1px">
         <div class="row"><div class="row-main"><div class="row-title">记忆总数</div></div><div class="row-right" id="sMem">—</div></div>
         <div class="row"><div class="row-main"><div class="row-title">知识条目</div></div><div class="row-right" id="sKnw">—</div></div>
-         <div class="row"><div class="row-main"><div class="row-title">日志天数</div></div><div class="row-right" id="sLog">—</div></div>
-         <div class="row"><div class="row-main"><div class="row-title">对话次数</div></div><div class="row-right" id="sSes">—</div></div>
-       </div>
-     </div>
-     <div class="section">
-       <div class="section-head"><span class="section-zh">会话历史</span><span class="section-en">Sessions</span></div>
-       <div id="sessionList" style="margin-top:1px"><div class="loading">载入中…</div></div>
-     </div>
+        <div class="row"><div class="row-main"><div class="row-title">日志天数</div></div><div class="row-right" id="sLog">—</div></div>
+        <div class="row"><div class="row-main"><div class="row-title">对话次数</div></div><div class="row-right" id="sSes">—</div></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span class="section-zh">会话历史</span><span class="section-en">Sessions</span></div>
+      <div id="sessionList" style="margin-top:1px"><div class="loading">载入中…</div></div>
+    </div>
+    <div class="section">
+      <div class="section-head"><span class="section-zh">清理</span><span class="section-en">Clean Up</span></div>
+      <div class="card-group" style="margin-top:1px">
+        <div class="row" onclick="clearSessions()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空会话记录</div><div class="row-sub">删除sessions全部数据</div></div><div class="chevron">›</div></div>
+        <div class="row" onclick="clearMemories()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空所有记忆</div><div class="row-sub">删除memories全部数据</div></div><div class="chevron">›</div></div>
+        <div class="row" onclick="clearArchives()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空所有归档</div><div class="row-sub">删除archives全部数据</div></div><div class="chevron">›</div></div>
+        <div class="row" onclick="clearKnowledge()"><div class="row-main"><div class="row-title" style="color:#ff3b30">清空知识库</div><div class="row-sub">删除knowledge全部数据</div></div><div class="chevron">›</div></div>
+      </div>
+    </div>
   </div>
+
 
   <!-- 标签栏 -->
   <div class="tabbar">
@@ -1096,6 +1097,35 @@ async function moveToFolder() {
   } catch(e) { toast('操作失败'); }
 }
 
+async function toggleArcFolderLock(fname) {
+  const key = 'archives:' + fname;
+  if (lockedFolders.has(key)) {
+    const pin = prompt('输入密码解锁：');
+    if (!pin) return;
+    const ok = await verifyFolderLock('archives', fname, pin);
+    if (!ok) { toast('密码错误'); return; }
+    try {
+      await fetch(`${SB.url}/rest/v1/folder_locks?folder_name=eq.${encodeURIComponent(fname)}&table_name=eq.archives`, {
+        method: 'DELETE', headers: { 'apikey': SB.key, 'Authorization': `Bearer ${SB.key}` }
+      });
+      lockedFolders.delete(key);
+      toast('已解锁');
+      renderArchives(ARC);
+    } catch(e) { toast('操作失败'); }
+  } else {
+    const pin = prompt('设置文件夹密码：');
+    if (!pin || !pin.trim()) return;
+    const pin2 = prompt('再次确认密码：');
+    if (pin !== pin2) { toast('两次密码不一致'); return; }
+    try {
+      await api('folder_locks', { method:'POST', body:{ folder_name:fname, table_name:'archives', pin_hash: btoa(pin) }});
+      lockedFolders.add(key);
+      toast('已加锁 🔒');
+      renderArchives(ARC);
+    } catch(e) { toast('操作失败'); }
+  }
+}
+
 async function renameFolder(oldName) {
   const newName = prompt('新名称：', oldName);
   if (!newName || !newName.trim() || newName === oldName) return;
@@ -1230,6 +1260,7 @@ async function openKnw(id) {
       + '</div>'
       + '<div style="font-size:14px;line-height:1.65;white-space:pre-wrap">' + c.content + '</div>'
       + readBtn
+      + '<button data-cid="' + c.id + '" data-kid="' + id + '" onclick="editKnwCmt(this.dataset.cid,this.dataset.kid)" style="background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;padding:2px 0;font-family:var(--sans)">编辑</button>'
       + '</div></div>';
   });
   document.getElementById('detailContent').innerHTML =
@@ -1251,6 +1282,7 @@ async function openKnw(id) {
     + '<textarea id="knwCmt" placeholder="回复…" style="min-height:70px"></textarea>'
     + '<div style="display:flex;gap:8px;margin-top:8px;margin-bottom:12px">'
     + '<button class="btn btn-primary" style="flex:2" data-id="' + id + '" onclick="submitKnwCmt(this.dataset.id)">回复</button>'
+    + '<button class="btn btn-ghost" style="flex:1" data-id="' + id + '" onclick="editKnwAnswer(this.dataset.id)">编辑回答</button>'
     + '<button class="btn btn-danger" style="flex:1" data-id="' + id + '" onclick="delKnw(this.dataset.id)">删除</button>'
     + '</div>'
     + '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:4px">'
@@ -1327,6 +1359,32 @@ async function linkArcToKnw(arcId, knwId, row) {
 function goToArchive(arcId) {
   switchTab('archives');
   setTimeout(() => openArchive(arcId), 100);
+}
+
+async function editKnwAnswer(knwId) {
+  const k = KNW.find(x => x.id === knwId);
+  if (!k) return;
+  const newAns = prompt('编辑回答：', k.answer || '');
+  if (newAns === null) return;
+  try {
+    await upd('knowledge', knwId, { answer: newAns, status: newAns ? 'answered' : 'pending', updated_at: new Date().toISOString() });
+    k.answer = newAns; k.status = newAns ? 'answered' : 'pending';
+    toast('已保存');
+    openKnw(knwId);
+  } catch(e) { toast('保存失败'); }
+}
+
+async function editKnwCmt(cmtId, knwId) {
+  const btn = document.querySelector('[data-cid="' + cmtId + '"]');
+  const row = btn?.closest('.row');
+  const current = row?.querySelector('[style*="font-size:14px"]')?.textContent || '';
+  const newTxt = prompt('编辑评论：', current);
+  if (!newTxt || newTxt === current) return;
+  try {
+    await upd('comments', cmtId, { content: newTxt });
+    toast('已保存');
+    openKnw(knwId);
+  } catch(e) { toast('保存失败'); }
 }
 
 async function markKnwRead(btn) {
@@ -1550,7 +1608,8 @@ function renderArchives(list) {
       + '<div id="' + fid + '" class="card-group" style="margin-top:1px">';
     items.forEach(a => { h += renderArcRow(a); });
     h += '</div>'
-      + (arcSelectMode ? '' : '<button data-fn="' + fname + '" onclick="renameFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 2px">重命名</button>'
+      + (arcSelectMode ? '' : '<button data-fn="' + fname + '" onclick="toggleArcFolderLock(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 2px">' + (lockedFolders.has('archives:'+fname)?'🔓 解锁':'🔒 加锁') + '</button>'
+        + '<button data-fn="' + fname + '" onclick="renameFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 2px">重命名</button>'
         + '<button data-fn="' + fname + '" onclick="deleteFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:#ff3b30;cursor:pointer;padding:6px 4px">删除文件夹</button>')
       + '</div>';
   });
@@ -1872,6 +1931,7 @@ async function clearKnowledge() {
 
 // ── 信件 ──
 let LETTERS = [];
+let currentTopic = null;
 
 function autoResize(el) {
   el.style.height = 'auto';
@@ -1880,85 +1940,114 @@ function autoResize(el) {
 
 async function loadLetters() {
   try {
-    LETTERS = await api('messages', { order:'created_at.asc', limit:200 }) || [];
-    renderLetters();
-    // 标记所有ai发的为已读
-    const unread = LETTERS.filter(m => m.author === 'ai' && !m.read_by_user);
-    for (const m of unread) {
-      await upd('messages', m.id, { read_by_user: true });
-    }
+    LETTERS = await api('messages', { order:'created_at.desc', limit:500 }) || [];
+    renderLetterList();
   } catch(e) {
     document.getElementById('lettersList').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
   }
 }
 
-function renderLetters() {
+function renderLetterList() {
   const el = document.getElementById('lettersList');
   if (!LETTERS.length) {
-    el.innerHTML = '<div class="empty" style="padding-top:80px"><div class="empty-en">Empty</div><div class="empty-zh">还没有信</div></div>';
+    el.innerHTML = '<div style="padding:16px">'
+      + '<button class="btn btn-primary" onclick="newLetterTopic()">+ 新建对话</button>'
+      + '</div><div class="empty"><div class="empty-en">Empty</div><div class="empty-zh">还没有信</div></div>';
     return;
   }
+  // 按topic分组
+  const topics = {};
+  LETTERS.forEach(m => {
+    const t = m.topic || '默认';
+    if (!topics[t]) topics[t] = [];
+    topics[t].push(m);
+  });
+  let h = '<div style="padding:16px 16px 8px">'
+    + '<button class="btn btn-primary" onclick="newLetterTopic()">+ 新建对话</button>'
+    + '</div><div class="card-group" style="margin:0 16px">';
+  Object.keys(topics).forEach(topic => {
+    const msgs = topics[topic];
+    const last = msgs[0];
+    const unreadCount = msgs.filter(m => m.author === 'ai' && !m.read_by_user).length;
+    const bjt = new Date(new Date(last.created_at).getTime() + 8*3600*1000);
+    const timeStr = bjt.toISOString().slice(5,16).replace('T',' ');
+    h += '<div class="row" data-topic="' + topic + '" onclick="openLetterTopic(this.dataset.topic)">'
+      + '<div class="row-main">'
+      + '<div class="row-title" style="font-weight:500">' + topic + (unreadCount > 0 ? ' <span style="background:#ff3b30;color:white;border-radius:10px;font-size:10px;padding:1px 6px;font-family:var(--sans)">' + unreadCount + '</span>' : '') + '</div>'
+      + '<div class="row-sub">' + last.content.slice(0,40) + (last.content.length>40?'…':'') + ' · ' + timeStr + '</div>'
+      + '</div><div class="chevron">›</div></div>';
+  });
+  h += '</div>';
+  el.innerHTML = h;
+}
 
+function newLetterTopic() {
+  const name = prompt('对话名称：');
+  if (!name || !name.trim()) return;
+  openLetterTopic(name.trim());
+}
+
+async function openLetterTopic(topic) {
+  currentTopic = topic;
+  stack.push('pageLetters');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageLetterChat').classList.add('active');
+  document.getElementById('navZh').textContent = topic;
+  document.getElementById('navEn').textContent = 'Letters';
+  // 读这个topic的消息
+  try {
+    const msgs = await api('messages', { filter:'topic=eq.'+encodeURIComponent(topic), order:'created_at.asc', limit:200 }) || [];
+    renderLetterChat(msgs, topic);
+    // 标记已读
+    const unread = msgs.filter(m => m.author === 'ai' && !m.read_by_user);
+    for (const m of unread) upd('messages', m.id, { read_by_user: true });
+  } catch(e) { document.getElementById('letterChatList').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>'; }
+}
+
+function renderLetterChat(msgs, topic) {
+  const el = document.getElementById('letterChatList');
+  if (!msgs.length) { el.innerHTML = '<div class="empty" style="padding-top:80px"><div class="empty-zh">还没有消息</div></div>'; return; }
   let h = '<div style="padding:16px;display:flex;flex-direction:column;gap:8px;">';
   let lastDate = '';
-
-  LETTERS.forEach(m => {
+  msgs.forEach(m => {
     const bjt = new Date(new Date(m.created_at).getTime() + 8*3600*1000);
     const dateStr = bjt.toISOString().slice(0,10);
     const timeStr = bjt.toISOString().slice(11,16);
-
-    // 日期分割线
     if (dateStr !== lastDate) {
-      h += `<div style="text-align:center;margin:8px 0 4px;font-size:11px;font-family:var(--sans);color:var(--text3)">${dateStr}</div>`;
+      h += '<div style="text-align:center;margin:8px 0 4px;font-size:11px;font-family:var(--sans);color:var(--text3)">' + dateStr + '</div>';
       lastDate = dateStr;
     }
-
     const isUser = m.author === 'user';
     const unread = m.author === 'ai' && !m.read_by_user;
     const mid = m.id;
-
     if (isUser) {
-      // 用户消息——右对齐，蓝色气泡，长按撤回
-      h += `<div style="display:flex;justify-content:flex-end;align-items:flex-end;gap:6px">
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
-          <div style="font-size:11px;font-family:var(--sans);color:var(--text3)">${timeStr}</div>
-          <button onclick="recallLetter('${mid}')" style="background:none;border:none;font-size:10px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:0">撤回</button>
-        </div>
-        <div style="max-width:72%;background:#007aff;color:white;padding:10px 14px;border-radius:18px 18px 4px 18px;font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word">${m.content}</div>
-      </div>`;
+      h += '<div style="display:flex;justify-content:flex-end;align-items:flex-end;gap:6px">'
+        + '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">'
+        + '<div style="font-size:11px;font-family:var(--sans);color:var(--text3)">' + timeStr + '</div>'
+        + '<button data-mid="' + mid + '" onclick="recallLetter(this.dataset.mid)" style="background:none;border:none;font-size:10px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:0">撤回</button>'
+        + '</div>'
+        + '<div style="max-width:72%;background:#007aff;color:white;padding:10px 14px;border-radius:18px 18px 4px 18px;font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word">' + m.content + '</div>'
+        + '</div>';
     } else {
       const isThinking = m.content.startsWith('[thinking]');
-      const displayContent = isThinking ? m.content.replace('[thinking]', '').trim() : m.content;
-
+      const dc = isThinking ? m.content.replace('[thinking]','').trim() : m.content;
       if (isThinking) {
-        // 思考链——折叠样式
-        h += `<div style="display:flex;justify-content:flex-start;align-items:flex-start;gap:6px;margin-bottom:2px">
-          <details style="max-width:72%">
-            <summary style="font-size:12px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 10px;background:var(--bg2);border-radius:12px;list-style:none;display:flex;align-items:center;gap:4px">
-              <span>💭</span><span>思考过程</span>
-            </summary>
-            <div style="margin-top:6px;background:var(--bg2);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--text3);line-height:1.6;white-space:pre-wrap;word-break:break-word;font-style:italic">${displayContent}</div>
-          </details>
-          <div style="font-size:11px;font-family:var(--sans);color:var(--text3);flex-shrink:0;padding-top:6px">${timeStr}</div>
-        </div>`;
+        h += '<div style="display:flex;justify-content:flex-start;align-items:flex-start;gap:6px;margin-bottom:2px">'
+          + '<details style="max-width:72%"><summary style="font-size:12px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:6px 10px;background:var(--bg2);border-radius:12px;list-style:none">💭 思考过程</summary>'
+          + '<div style="margin-top:6px;background:var(--bg2);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--text3);line-height:1.6;white-space:pre-wrap;font-style:italic">' + dc + '</div></details>'
+          + '<div style="font-size:11px;font-family:var(--sans);color:var(--text3);flex-shrink:0;padding-top:6px">' + timeStr + '</div></div>';
       } else {
-        // 普通AI消息——白色实心气泡
-        h += `<div style="display:flex;justify-content:flex-start;align-items:flex-end;gap:6px">
-          <div style="max-width:72%;background:#ffffff;color:#111111;padding:10px 14px;border-radius:18px 18px 18px 4px;font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 3px rgba(0,0,0,0.1)">${displayContent}</div>
-          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex-shrink:0">
-            <div style="font-size:11px;font-family:var(--sans);color:var(--text3)">${timeStr}</div>
-            ${unread ? '<div style="width:8px;height:8px;border-radius:50%;background:#ff3b30;margin-left:2px"></div>' : ''}
-          </div>
-        </div>`;
+        h += '<div style="display:flex;justify-content:flex-start;align-items:flex-end;gap:6px">'
+          + '<div style="max-width:72%;background:#ffffff;color:#111111;padding:10px 14px;border-radius:18px 18px 18px 4px;font-size:15px;line-height:1.5;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 3px rgba(0,0,0,0.1)">' + dc + '</div>'
+          + '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex-shrink:0">'
+          + '<div style="font-size:11px;font-family:var(--sans);color:var(--text3)">' + timeStr + '</div>'
+          + (unread ? '<div style="width:8px;height:8px;border-radius:50%;background:#ff3b30;margin-left:2px"></div>' : '')
+          + '</div></div>';
       }
     }
   });
-
   h += '</div>';
   el.innerHTML = h;
-
-  // 滚到底部
-  el.scrollTop = el.scrollHeight;
   window.scrollTo(0, document.body.scrollHeight);
 }
 
@@ -1966,9 +2055,9 @@ async function recallLetter(id) {
   if (!confirm('撤回这条消息？')) return;
   try {
     await rm('messages', id);
-    LETTERS = LETTERS.filter(m => m.id !== id);
-    renderLetters();
     toast('已撤回');
+    if (currentTopic) openLetterTopic(currentTopic);
+    else loadLetters();
   } catch(e) { toast('撤回失败'); }
 }
 
@@ -1978,13 +2067,14 @@ async function sendLetter() {
   try {
     await api('messages', {
       method: 'POST',
-      body: { content: txt, author: 'user', read_by_user: true, read_by_ai: false }
+      body: { content: txt, author: 'user', read_by_user: true, read_by_ai: false, topic: currentTopic || '默认' }
     });
     document.getElementById('letterInput').value = '';
     document.getElementById('letterInput').style.height = '40px';
-    await loadLetters();
+    if (currentTopic) openLetterTopic(currentTopic);
   } catch(e) { toast('发送失败'); }
 }
+
 
 // ── 文件夹锁 ──
 let lockedFolders = new Set(); // 格式: 'memories:文件夹名' 或 'archives:文件夹名'
@@ -2311,7 +2401,10 @@ async function loadScratchForArc(arcId) {
       return `<div style="background:var(--bg2);border-radius:10px;padding:10px 12px;margin-bottom:8px;position:relative">
         <div style="font-size:14px;line-height:1.6;white-space:pre-wrap;padding-right:40px">${s.content}</div>
         <div style="font-size:11px;font-family:var(--sans);color:var(--text3);margin-top:4px">${t}</div>
-        <button data-sid="${s.id}" data-aid="${arcId}" onclick="deleteScratch(this.dataset.sid,this.dataset.aid)" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer">删除</button>
+        <div style="position:absolute;top:8px;right:8px;display:flex;gap:6px">
+          <button data-sid="${s.id}" data-aid="${arcId}" onclick="editScratch(this.dataset.sid,this.dataset.aid)" style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer">编辑</button>
+          <button data-sid="${s.id}" data-aid="${arcId}" onclick="deleteScratch(this.dataset.sid,this.dataset.aid)" style="background:none;border:none;color:#ff3b30;font-size:13px;cursor:pointer">删除</button>
+        </div>
       </div>`;
     }).join('');
   } catch(e) { console.error('scratch load error', e); }
@@ -2326,6 +2419,17 @@ async function addScratchToArc(arcId) {
     el.value = '';
     await loadScratchForArc(arcId);
     toast('便签已存');
+  } catch(e) { toast('保存失败'); }
+}
+
+async function editScratch(id, arcId) {
+  const current = document.querySelector('[data-sid="' + id + '"]')?.closest('div[style*="position:relative"]')?.querySelector('div[style*="font-size:14px"]')?.textContent || '';
+  const newTxt = prompt('编辑便签：', current);
+  if (!newTxt || newTxt === current) return;
+  try {
+    await upd('scratch', id, { content: newTxt });
+    await loadScratchForArc(arcId);
+    toast('已保存');
   } catch(e) { toast('保存失败'); }
 }
 
@@ -2600,17 +2704,20 @@ function calNext() {
 async function loadSettings() {
   document.getElementById('settingUrl').textContent = SB.url;
   try {
-    const [m,k,l,s] = await Promise.all([
-      api('memories',{select:'id',limit:9999}),
-      api('knowledge',{select:'id',limit:9999}),
-      api('daily_log',{select:'id',limit:9999}),
-      api('sessions',{select:'id',limit:9999})
+    const countReq = async (table) => {
+      const r = await fetch(`${SB.url}/rest/v1/${table}?select=count`, {
+        headers: { 'apikey': SB.key, 'Authorization': `Bearer ${SB.key}`, 'Prefer': 'count=exact', 'Range-Unit': 'items' }
+      });
+      return r.headers.get('content-range')?.split('/')[1] || '0';
+    };
+    const [mc, kc, lc, sc] = await Promise.all([
+      countReq('memories'), countReq('knowledge'), countReq('daily_log'), countReq('sessions')
     ]);
-    document.getElementById('sMem').textContent = m?.length||0;
-    document.getElementById('sKnw').textContent = k?.length||0;
-    document.getElementById('sLog').textContent = l?.length||0;
-    document.getElementById('sSes').textContent = s?.length||0;
-  } catch(e){}
+    document.getElementById('sMem').textContent = mc;
+    document.getElementById('sKnw').textContent = kc;
+    document.getElementById('sLog').textContent = lc;
+    document.getElementById('sSes').textContent = sc;
+  } catch(e){ console.error('settings count error', e); }
 
   // 加载会话历史
   try {
