@@ -1996,7 +1996,7 @@ async function openLetterTopic(topic) {
   document.getElementById('navEn').textContent = 'Letters';
   // 读这个topic的消息
   try {
-    const msgs = await api('messages', { filter:'topic=eq.'+encodeURIComponent(topic), order:'created_at.asc', limit:200 }) || [];
+    const msgs = await api('messages', { filter:'topic=eq.'+topic, order:'created_at.asc', limit:200 }) || [];
     renderLetterChat(msgs, topic);
     // 标记已读
     const unread = msgs.filter(m => m.author === 'ai' && !m.read_by_user);
