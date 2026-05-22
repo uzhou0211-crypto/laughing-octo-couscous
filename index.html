@@ -1084,7 +1084,7 @@ function insertKnwBefore(id) {
 
 async function loadKnw() {
   try {
-    KNW = await api('knowledge',{order:'created_at.desc',limit:1000})||[];
+    KNW = await api('knowledge',{order:'sort_order.asc',limit:1000})||[];
     renderKnw(KNW);
   } catch(e) { document.getElementById('kList').innerHTML=`<div class="empty"><div class="empty-zh">加载失败</div></div>`; }
 }
@@ -1097,15 +1097,15 @@ function renderKnw(list) {
   if (p.length) {
     h+=`<div class="section"><div class="section-head"><span class="section-zh">待回答</span><span class="section-n">${p.length}</span></div><div class="card-group" style="margin-top:1px">`;
     p.forEach((k,i)=>{
-      h += `<div class="row" data-id="${k.id}" data-mode="knw" onclick="openKnw(this.dataset.id)">
+      h += `<div class="row" data-id="${k.id}" data-table="knowledge" draggable="true"
+        ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event)" ondragend="dragEnd(event)"
+        onclick="openKnw(this.dataset.id)">
+        <div style="color:var(--text3);font-size:16px;cursor:grab;padding:0 8px 0 0;flex-shrink:0;touch-action:none" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">⠿</div>
         <div class="row-main">
           <div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div>
           <div class="row-sub">${k.category} · ${ago(k.created_at)}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button data-kid="${k.id}" onclick="event.stopPropagation();insertKnwBefore(this.dataset.kid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer">插入</button>
-          <div class="chevron">›</div>
-        </div>
+        <div class="chevron">›</div>
       </div>`;
     });
     h+='</div></div>';
@@ -1113,15 +1113,15 @@ function renderKnw(list) {
   if (a.length) {
     h+=`<div class="section"><div class="section-head"><span class="section-zh">已回答</span><span class="section-n">${a.length}</span></div><div class="card-group" style="margin-top:1px">`;
     a.forEach((k,i)=>{
-      h += `<div class="row" data-id="${k.id}" onclick="openKnw(this.dataset.id)">
+      h += `<div class="row" data-id="${k.id}" data-table="knowledge" draggable="true"
+        ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event)" ondragend="dragEnd(event)"
+        onclick="openKnw(this.dataset.id)">
+        <div style="color:var(--text3);font-size:16px;cursor:grab;padding:0 8px 0 0;flex-shrink:0">⠿</div>
         <div class="row-main">
           <div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div>
           <div class="row-sub">${k.category} · ${ago(k.created_at)}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <button data-kid="${k.id}" onclick="event.stopPropagation();insertKnwBefore(this.dataset.kid)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer">插入</button>
-          <div class="chevron">›</div>
-        </div>
+        <div class="chevron">›</div>
       </div>`;
     });
     h+='</div></div>';
@@ -1148,7 +1148,8 @@ async function openKnw(id) {
     const isAi = c.author === 'ai';
     const unread = isAi && !c.read_by_you;
     const readBtn = unread ? '<button class="btn btn-ghost" style="margin-top:6px;padding:4px 10px;font-size:11px;width:auto" onclick="markKnwRead(this)" data-cid="' + c.id + '" data-kid="' + id + '">标为已读</button>' : '';
-    cmtHtml += '<div class="row" style="cursor:default;align-items:flex-start">'
+    cmtHtml += '<div class="row" style="align-items:flex-start" data-id="' + c.id + '" data-table="comments" draggable="true" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event)" ondragend="dragEnd(event)">'
+      + '<div style="color:var(--text3);font-size:16px;cursor:grab;padding:4px 8px 0 0;flex-shrink:0">⠿</div>'
       + '<div class="row-main">'
       + '<div class="row-sub" style="margin-bottom:4px">'
       + String(i+1).padStart(2,'0') + ' · '
@@ -1913,6 +1914,71 @@ async function sendLetter() {
   } catch(e) { toast('发送失败'); }
 }
 
+// ── 拖拽排序 ──
+let dragSrc = null;
+
+function dragStart(e) {
+  dragSrc = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrc.dataset.id);
+  setTimeout(() => { if(dragSrc) dragSrc.style.opacity = '0.4'; }, 0);
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.currentTarget;
+  if (row !== dragSrc) {
+    row.style.borderTop = '2px solid var(--text)';
+  }
+}
+
+function dragEnd(e) {
+  if (dragSrc) dragSrc.style.opacity = '';
+  document.querySelectorAll('[draggable]').forEach(el => { el.style.borderTop = ''; });
+  dragSrc = null;
+}
+
+async function dragDrop(e) {
+  e.preventDefault();
+  const target = e.currentTarget;
+  if (!dragSrc || dragSrc === target) return;
+
+  const table = dragSrc.dataset.table;
+  const srcId = dragSrc.dataset.id;
+  const tgtId = target.dataset.id;
+
+  // 找到父容器里所有同类行
+  const parent = target.parentElement;
+  const rows = [...parent.querySelectorAll('[draggable]')];
+  const srcIdx = rows.indexOf(dragSrc);
+  const tgtIdx = rows.indexOf(target);
+
+  // 重排DOM
+  if (srcIdx < tgtIdx) {
+    parent.insertBefore(dragSrc, target.nextSibling);
+  } else {
+    parent.insertBefore(dragSrc, target);
+  }
+
+  dragSrc.style.opacity = '';
+  target.style.borderTop = '';
+
+  // 保存新顺序到数据库
+  const newRows = [...parent.querySelectorAll('[draggable]')];
+  try {
+    for (let i = 0; i < newRows.length; i++) {
+      const rowId = newRows[i].dataset.id;
+      await upd(table, rowId, { sort_order: i * 10 });
+      // 更新本地缓存
+      if (table === 'knowledge') {
+        const k = KNW.find(x => x.id === rowId);
+        if (k) k.sort_order = i * 10;
+      }
+    }
+  } catch(ex) { toast('排序保存失败'); }
+}
+
 // ── 长按计时器 ──
 let arcLongPressTimer = null;
 let memLongPressTimer = null;
@@ -2432,7 +2498,6 @@ function initTheme() {
 }
 
 async function init() {
-  initTheme();
   document.getElementById('navDate').textContent = bjt().toISOString().slice(0,10).replace(/-/g,'年').replace('年',':').split(':')[1].replace('-','月')+'日' + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][bjt().getUTCDay()] + ' · 北京时间';
   await Promise.all([loadMem(), loadKnw()]);
 }
