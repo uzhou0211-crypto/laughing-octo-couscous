@@ -372,9 +372,10 @@ textarea { min-height: 110px; }
      <div id="memNormalBar" style="margin-bottom:16px">
        <button class="btn btn-primary" onclick="showNewMem()">+ 新增记忆</button>
      </div>
-     <div id="memSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;">
-       <span id="memSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);flex:1">已选 0 条</span>
+     <div id="memSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;flex-wrap:wrap;">
+       <span id="memSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);width:100%">已选 0 条</span>
        <button class="btn btn-ghost" style="flex:1" onclick="selectAllMems()">全选</button>
+       <button class="btn btn-ghost" style="flex:1" onclick="moveMemToFolder()">移入文件夹</button>
        <button class="btn btn-danger" style="flex:1" onclick="deleteSelectedMems()">删除</button>
        <button class="btn btn-ghost" style="flex:1" onclick="exitMemSelect()">取消</button>
      </div>
@@ -736,45 +737,116 @@ async function loadMem() {
 function renderMem(list) {
   const el = document.getElementById('memList');
   if (!list.length) { el.innerHTML='<div class="empty"><div class="empty-en">Empty</div><div class="empty-zh">还没有记忆</div></div>'; return; }
-  const g = {};
-  list.forEach(m=>{ (g[m.type]=g[m.type]||[]).push(m); });
-  let h = '';
-  TO.forEach(t=>{
-    if (!g[t]) return;
-    h += `<div class="section">
-      <div class="section-head">
-        <span class="section-zh">${TN[t]||t}</span>
-        <span class="section-n">${g[t].length}</span>
-      </div>
-      <div class="card-group" style="margin-top:1px">`;
-    g[t].forEach(m=>{
-      const p = m.content.replace(/\n/g,' ').slice(0,52);
-      const mid = m.id;
-      const mSafeId = 'mem_' + mid.replace(/-/g,'_');
-      const isMemSel = memSelected.has(mid);
-      const leftIcon = memSelectMode
-        ? '<div style="width:20px;height:20px;border-radius:50%;border:2px solid ' + (isMemSel?'#ff3b30':'var(--text3)') + ';background:' + (isMemSel?'#ff3b30':'transparent') + ';flex-shrink:0;display:flex;align-items:center;justify-content:center">' + (isMemSel?'<span style="color:white;font-size:12px">✓</span>':'') + '</div>'
-        : '<div class="row-dot" style="background:' + (TC[m.type]||'#aaa') + '"></div>';
-      const rightIcon = memSelectMode ? '' : '<div class="chevron">›</div>';
-      h += '<div class="row" id="' + mSafeId + '"'
-        + ' style="' + (isMemSel?'background:rgba(255,59,48,0.08);':'') + '"'
-        + ' data-mid="' + mid + '"'
-        + ' onclick="memSelectMode?toggleMemItem(this.dataset.mid):openMem(this.dataset.mid)"'
-        + ' ontouchstart="memLongPress(this.dataset.mid,this)"'
-        + ' ontouchend="clearMemLongPress()"'
-        + ' ontouchmove="clearMemLongPress()">'
-        + leftIcon
-        + '<div class="row-main">'
-        + '<div class="row-title">' + p + (m.content.length>52?'…':'') + '</div>'
-        + '<div class="row-sub">' + ago(m.created_at) + (m.chord?' · ♩':'') + '</div>'
-        + '</div>'
-        + rightIcon
-        + '</div>';
-    });
-    h += '</div></div>';
+
+  function memRow(m) {
+    const p = m.content.replace(/\n/g,' ').slice(0,52);
+    const mid = m.id;
+    const mSafeId = 'mem_' + mid.replace(/-/g,'_');
+    const isMemSel = memSelected.has(mid);
+    const leftIcon = memSelectMode
+      ? '<div style="width:20px;height:20px;border-radius:50%;border:2px solid ' + (isMemSel?'#ff3b30':'var(--text3)') + ';background:' + (isMemSel?'#ff3b30':'transparent') + ';flex-shrink:0;display:flex;align-items:center;justify-content:center">' + (isMemSel?'<span style="color:white;font-size:12px">✓</span>':'') + '</div>'
+      : '<div class="row-dot" style="background:' + (TC[m.type]||'#aaa') + '"></div>';
+    const rightIcon = memSelectMode ? '' : '<div class="chevron">›</div>';
+    return '<div class="row" id="' + mSafeId + '"'
+      + ' style="' + (isMemSel?'background:rgba(255,59,48,0.08);':'') + '"'
+      + ' data-mid="' + mid + '"'
+      + ' onclick="memSelectMode?toggleMemItem(this.dataset.mid):openMem(this.dataset.mid)"'
+      + ' ontouchstart="memLongPress(this.dataset.mid,this)"'
+      + ' ontouchend="clearMemLongPress()"'
+      + ' ontouchmove="clearMemLongPress()">'
+      + leftIcon
+      + '<div class="row-main">'
+      + '<div class="row-title">' + p + (m.content.length>52?'…':'') + '</div>'
+      + '<div class="row-sub">' + ago(m.created_at) + (m.chord?' · ♩':'') + '</div>'
+      + '</div>'
+      + rightIcon
+      + '</div>';
+  }
+
+  // 分文件夹
+  const folders = {};
+  const noFolder = [];
+  list.forEach(m => {
+    if (m.folder) { if (!folders[m.folder]) folders[m.folder]=[]; folders[m.folder].push(m); }
+    else noFolder.push(m);
   });
+
+  let h = '';
+
+  // 文件夹
+  Object.keys(folders).sort().forEach(fname => {
+    const fid = 'mfolder_' + fname.replace(/\s/g,'_');
+    const isLocked = lockedFolders.has('memories:' + fname);
+    h += '<div class="section">'
+      + '<div class="section-head" style="cursor:pointer" data-fid="' + fid + '" onclick="toggleMemFolder(this.dataset.fid)">'
+      + '<span style="font-size:16px;margin-right:6px">' + (isLocked?'🔒':'📁') + '</span>'
+      + '<span class="section-zh">' + fname + '</span>'
+      + '<span class="section-n" style="margin-left:auto">' + folders[fname].length + '</span>'
+      + '<span id="' + fid + '_arrow" style="margin-left:8px;color:var(--text3);font-size:13px">▾</span>'
+      + '</div>';
+    if (!isLocked) {
+      h += '<div id="' + fid + '" class="card-group" style="margin-top:1px">';
+      folders[fname].forEach(m => { h += memRow(m); });
+      h += '</div>';
+    } else {
+      h += '<div id="' + fid + '" style="display:none"><div class="card-group" style="margin-top:1px">';
+      folders[fname].forEach(m => { h += memRow(m); });
+      h += '</div></div>';
+    }
+    if (!memSelectMode) {
+      h += '<div style="display:flex;gap:8px;padding:4px 2px">'
+        + '<button data-fn="' + fname + '" onclick="toggleMemFolderLock(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:4px 0">' + (isLocked?'🔓 解锁':'🔒 加锁') + '</button>'
+        + '<button data-fn="' + fname + '" onclick="renameMemFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:4px 4px">重命名</button>'
+        + '<button data-fn="' + fname + '" onclick="deleteMemFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:#ff3b30;cursor:pointer;padding:4px 0">删除文件夹</button>'
+        + '</div>';
+    }
+    h += '</div>';
+  });
+
+  // 未分类按类型
+  if (noFolder.length) {
+    const g = {};
+    noFolder.forEach(m => { (g[m.type]=g[m.type]||[]).push(m); });
+    if (Object.keys(folders).length > 0) {
+      h += '<div class="section"><div class="section-head"><span class="section-zh">未分类</span><span class="section-n">' + noFolder.length + '</span></div>';
+    }
+    TO.forEach(t => {
+      if (!g[t]) return;
+      h += '<div class="section-head" style="padding:4px 2px 6px"><span class="section-zh" style="font-size:12px">' + (TN[t]||t) + '</span><span class="section-n">' + g[t].length + '</span></div>'
+        + '<div class="card-group" style="margin-top:1px;margin-bottom:8px">';
+      g[t].forEach(m => { h += memRow(m); });
+      h += '</div>';
+    });
+    if (Object.keys(folders).length > 0) h += '</div>';
+  }
+
   el.innerHTML = h;
 }
+
+function toggleMemFolder(fid) {
+  const el = document.getElementById(fid);
+  const arrow = document.getElementById(fid + '_arrow');
+  if (!el) return;
+  const fname = fid.replace('mfolder_','').replace(/_/g,' ');
+  if (lockedFolders.has('memories:' + fname)) {
+    // 加锁状态，需要输入密码
+    const pin = prompt('输入密码解锁文件夹：');
+    if (!pin) return;
+    verifyFolderLock('memories', fname, pin).then(ok => {
+      if (ok) {
+        el.style.display = '';
+        if (arrow) arrow.textContent = '▾';
+      } else {
+        toast('密码错误');
+      }
+    });
+    return;
+  }
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  if (arrow) arrow.textContent = hidden ? '▾' : '▸';
+}
+
 
 function searchMem() {
   const q = document.getElementById('memSearch').value.toLowerCase();
@@ -1003,7 +1075,7 @@ async function moveToFolder() {
   let name;
   if (folders.length) {
     const opts = folders.join('\n') + '\n（输入新文件夹名）';
-    name = prompt('选择或新建文件夹：\n' + folders.map((f,i)=>`${i+1}. ${f}`).join('\n') + '\n\n输入文件夹名或序号：');
+    name = prompt('选择或新建文件夹：\n' + folders.map((f,i)=>i+1+'. '+f).join('\n') + '\n\n输入文件夹名或序号：');
     if (!name) return;
     const idx = parseInt(name) - 1;
     if (idx >= 0 && idx < folders.length) name = folders[idx];
@@ -1040,7 +1112,7 @@ async function renameFolder(oldName) {
 
 async function deleteFolder(name) {
   const items = ARC.filter(a => a.folder === name);
-  const choice = confirm('删除文件夹"' + name + '"\n\n确定 = 连同里面 ' + items.length + ' 条归档一起删除\n取消 = 只删文件夹，归档移回未分类');
+  const choice = confirm('删除文件夹 ' + name + '\n\n确定 = 连同里面 ' + items.length + ' 条归档一起删除\n取消 = 只删文件夹，归档移回未分类');
   try {
     if (choice) {
       // 连同归档一起删
@@ -1174,7 +1246,7 @@ async function openKnw(id) {
     + '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:12px">'
     + '<span class="section-zh">评论</span>'
     + '<span class="section-en">Comments · ' + cmts.length + '</span></div>'
-    + (cmts.length ? '<div class="card-group" style="margin-bottom:12px">' + cmtHtml + '</div>'
+    + (cmts.length ? '<div class="card-group" id="cmtList_' + id + '" style="margin-bottom:12px">' + cmtHtml + '</div>'
       : '<div style="color:var(--text3);font-size:13px;font-style:italic;padding:8px 2px;margin-bottom:12px">还没有评论</div>')
     + '<textarea id="knwCmt" placeholder="回复…" style="min-height:70px"></textarea>'
     + '<div style="display:flex;gap:8px;margin-top:8px;margin-bottom:12px">'
@@ -1914,6 +1986,108 @@ async function sendLetter() {
   } catch(e) { toast('发送失败'); }
 }
 
+// ── 文件夹锁 ──
+let lockedFolders = new Set(); // 格式: 'memories:文件夹名' 或 'archives:文件夹名'
+
+async function loadFolderLocks() {
+  try {
+    const locks = await api('folder_locks', { select:'folder_name,table_name', limit:200 }) || [];
+    lockedFolders = new Set(locks.map(l => l.table_name + ':' + l.folder_name));
+  } catch(e) {}
+}
+
+async function verifyFolderLock(table, fname, pin) {
+  try {
+    const locks = await api('folder_locks', { filter:'folder_name=eq.'+encodeURIComponent(fname)+'&table_name=eq.'+table, limit:1 }) || [];
+    if (!locks.length) return false;
+    // 简单比较hash（用btoa做简单编码）
+    return btoa(pin) === locks[0].pin_hash;
+  } catch(e) { return false; }
+}
+
+async function toggleMemFolderLock(fname) {
+  const key = 'memories:' + fname;
+  if (lockedFolders.has(key)) {
+    // 解锁
+    const pin = prompt('输入密码解锁：');
+    if (!pin) return;
+    const ok = await verifyFolderLock('memories', fname, pin);
+    if (!ok) { toast('密码错误'); return; }
+    try {
+      await fetch(`${SB.url}/rest/v1/folder_locks?folder_name=eq.${encodeURIComponent(fname)}&table_name=eq.memories`, {
+        method: 'DELETE', headers: { 'apikey': SB.key, 'Authorization': `Bearer ${SB.key}` }
+      });
+      lockedFolders.delete(key);
+      toast('已解锁');
+      renderMem(MEM);
+    } catch(e) { toast('操作失败'); }
+  } else {
+    // 加锁
+    const pin = prompt('设置文件夹密码：');
+    if (!pin || !pin.trim()) return;
+    const pin2 = prompt('再次确认密码：');
+    if (pin !== pin2) { toast('两次密码不一致'); return; }
+    try {
+      await api('folder_locks', { method:'POST', body:{ folder_name:fname, table_name:'memories', pin_hash: btoa(pin) }});
+      lockedFolders.add(key);
+      toast('已加锁 🔒');
+      renderMem(MEM);
+    } catch(e) { toast('操作失败'); }
+  }
+}
+
+async function moveMemToFolder() {
+  if (!memSelected.size) { toast('请先选择记忆'); return; }
+  const folders = [...new Set(MEM.filter(m=>m.folder).map(m=>m.folder))];
+  let name;
+  if (folders.length) {
+    name = prompt('选择或新建文件夹：\n' + folders.map((f,i)=>i+1+'. '+f).join('\n') + '\n\n输入文件夹名或序号：');
+    if (!name) return;
+    const idx = parseInt(name) - 1;
+    if (idx >= 0 && idx < folders.length) name = folders[idx];
+  } else {
+    name = prompt('文件夹名称：');
+    if (!name) return;
+  }
+  name = name.trim();
+  if (!name) return;
+  try {
+    for (const id of memSelected) {
+      await upd('memories', id, { folder: name });
+      const m = MEM.find(x => x.id === id);
+      if (m) m.folder = name;
+    }
+    toast('已移入 ' + name);
+    exitMemSelect();
+  } catch(e) { toast('操作失败'); }
+}
+
+async function renameMemFolder(oldName) {
+  const newName = prompt('新名称：', oldName);
+  if (!newName || !newName.trim() || newName === oldName) return;
+  try {
+    const items = MEM.filter(m => m.folder === oldName);
+    for (const m of items) { await upd('memories', m.id, { folder: newName.trim() }); m.folder = newName.trim(); }
+    toast('已重命名'); renderMem(MEM);
+  } catch(e) { toast('操作失败'); }
+}
+
+async function deleteMemFolder(name) {
+  const items = MEM.filter(m => m.folder === name);
+  const choice = confirm('删除文件夹 ' + name + '\n\n确定 = 连同里面 ' + items.length + ' 条记忆一起删除\n取消 = 只删文件夹，记忆移回未分类');
+  try {
+    if (choice) {
+      for (const m of items) await rm('memories', m.id);
+      MEM = MEM.filter(m => m.folder !== name);
+      toast('已全部删除');
+    } else {
+      for (const m of items) { await upd('memories', m.id, { folder: null }); m.folder = null; }
+      toast('文件夹已删除');
+    }
+    renderMem(MEM);
+  } catch(e) { toast('操作失败'); }
+}
+
 // ── 拖拽排序 ──
 let dragSrc = null;
 
@@ -1949,7 +2123,12 @@ async function dragDrop(e) {
   const tgtId = target.dataset.id;
 
   // 找到父容器里所有同类行
-  const parent = target.parentElement;
+  let parent = target.parentElement;
+  // 确保找到card-group容器
+  while (parent && !parent.classList.contains('card-group')) {
+    parent = parent.parentElement;
+  }
+  if (!parent) parent = target.parentElement;
   const rows = [...parent.querySelectorAll('[draggable]')];
   const srcIdx = rows.indexOf(dragSrc);
   const tgtIdx = rows.indexOf(target);
@@ -2499,7 +2678,7 @@ function initTheme() {
 
 async function init() {
   document.getElementById('navDate').textContent = bjt().toISOString().slice(0,10).replace(/-/g,'年').replace('年',':').split(':')[1].replace('-','月')+'日' + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][bjt().getUTCDay()] + ' · 北京时间';
-  await Promise.all([loadMem(), loadKnw()]);
+  await Promise.all([loadMem(), loadKnw(), loadFolderLocks()]);
 }
 
 if (SB.url && SB.key) {
