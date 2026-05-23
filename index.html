@@ -106,6 +106,7 @@ body {
 /* ── 页面 ── */
 .page { display: none; padding: 20px 16px; }
 .page.active { display: block; }
+#pageLetterChat.active { display: flex; height: calc(100vh - 140px); padding: 0; }
 
 /* ── 分组 ── */
 .section { margin-bottom: 32px; }
@@ -603,7 +604,7 @@ textarea { min-height: 110px; }
   </div>
 
   <!-- 信对话详情 -->
-  <div class="page" id="pageLetterChat" style="padding:0;display:flex;flex-direction:column;height:calc(100vh - 140px);">
+  <div class="page" id="pageLetterChat" style="padding:0;flex-direction:column;">
     <div id="letterChatList" style="flex:1;overflow-y:auto;padding:16px 16px 8px;"></div>
     <div style="background:var(--bg);border-top:1px solid var(--sep);padding:10px 16px;display:flex;gap:8px;flex-shrink:0;">
       <textarea id="letterInput" placeholder="写一封信…" style="flex:1;min-height:40px;max-height:120px;border:1px solid var(--sep);border-radius:18px;padding:10px 14px;font-size:15px;font-family:var(--serif);background:var(--card);color:var(--text);outline:none;resize:none;line-height:1.4;overflow-y:auto;" oninput="autoResize(this)"></textarea>
@@ -3456,6 +3457,23 @@ function processPin() {
   const screen = document.getElementById('lockScreen');
   const mode = screen.dataset.mode;
 
+  if (mode === 'verify_then_set') {
+    const pin = localStorage.getItem(LOCK_KEY);
+    if (btoa(lockBuffer) === pin) {
+      // 验证通过，进入设置新密码
+      localStorage.removeItem(LOCK_KEY);
+      lockBuffer = '';
+      screen.dataset.mode = 'set';
+      screen.dataset.firstPin = '';
+      updateDots();
+      document.querySelector('.lock-title').textContent = '设置新密码';
+    } else {
+      showLockError('密码错误');
+      setTimeout(() => { lockBuffer = ''; updateDots(); }, 800);
+    }
+    return;
+  }
+
   if (mode === 'set') {
     if (!screen.dataset.firstPin) {
       // 第一次输入
@@ -3516,16 +3534,16 @@ function changePin() {
   try {
     const hasPin = !!localStorage.getItem(LOCK_KEY);
     if (hasPin) {
-      const oldPin = prompt('输入当前密码：');
-      if (!oldPin) return;
-      if (btoa(oldPin) !== localStorage.getItem(LOCK_KEY)) {
-        alert('密码错误');
-        return;
-      }
+      // 有密码——先弹出验证旧密码的锁屏，通过后自动进入设置新密码流程
+      localStorage.removeItem(LOCK_UNLOCKED_KEY);
+      document.getElementById('lockScreen').style.display = 'flex';
+      document.querySelector('.lock-title').textContent = '输入当前密码';
+      document.getElementById('lockScreen').dataset.mode = 'verify_then_set';
+      lockBuffer = '';
+      updateDots();
+    } else {
+      showSetPin();
     }
-    localStorage.removeItem(LOCK_KEY);
-    localStorage.removeItem(LOCK_UNLOCKED_KEY);
-    showSetPin();
   } catch(e) { console.error('changePin error', e); }
 }
 
