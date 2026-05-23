@@ -545,13 +545,10 @@ textarea { min-height: 110px; }
 
   <!-- 理论家 -->
   <div class="page" id="pageTheorists">
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <div class="search" style="flex:1;margin-bottom:0">
-        <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
-      </div>
-      <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap" onclick="showNewThNote()">+ 新增</button>
+    <div class="search" style="margin-bottom:8px">
+      <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
     </div>
-    <div id="thLayout" style="display:flex;height:calc(100vh - 210px)">
+    <div id="thLayout" style="display:flex;height:calc(100vh - 230px)">
       <div id="thList" style="width:130px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--sep)">
         <div class="loading">载入中…</div>
       </div>
@@ -559,28 +556,28 @@ textarea { min-height: 110px; }
         <div style="padding:40px 0;text-align:center;color:var(--text3);font-style:italic;font-size:13px">选择一位理论家</div>
       </div>
     </div>
+    <div style="padding:10px 0 0;border-top:1px solid var(--sep);margin-top:8px">
+      <button class="btn btn-ghost" onclick="showNewThNote()" style="width:100%">+ 新增理论家笔记</button>
+    </div>
   </div>
 
   <!-- 进度 -->
   <div class="page" id="pageProgress">
-    <div style="margin-bottom:12px">
-      <button class="btn btn-primary" onclick="showNewProgress()">+ 新增进度节点</button>
-    </div>
-    <div id="progressTimeline" style="padding:8px 0 80px">
+    <div id="progressTimeline" style="padding:8px 0 16px">
       <div class="loading">载入中…</div>
+    </div>
+    <div style="padding:8px 0 0;border-top:1px solid var(--sep)">
+      <button class="btn btn-primary" onclick="showNewProgress()" style="width:100%">+ 新增进度节点</button>
     </div>
   </div>
 
   <!-- 设置 -->
   <!-- 理论家 -->
   <div class="page" id="pageTheorists">
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <div class="search" style="flex:1;margin-bottom:0">
-        <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
-      </div>
-      <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap" onclick="showNewThNote()">+ 新增</button>
+    <div class="search" style="margin-bottom:8px">
+      <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
     </div>
-    <div id="thLayout" style="display:flex;height:calc(100vh - 210px)">
+    <div id="thLayout" style="display:flex;height:calc(100vh - 230px)">
       <div id="thList" style="width:130px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--sep)">
         <div class="loading">载入中…</div>
       </div>
@@ -588,15 +585,18 @@ textarea { min-height: 110px; }
         <div style="padding:40px 0;text-align:center;color:var(--text3);font-style:italic;font-size:13px">选择一位理论家</div>
       </div>
     </div>
+    <div style="padding:10px 0 0;border-top:1px solid var(--sep);margin-top:8px">
+      <button class="btn btn-ghost" onclick="showNewThNote()" style="width:100%">+ 新增理论家笔记</button>
+    </div>
   </div>
 
   <!-- 进度 -->
   <div class="page" id="pageProgress">
-    <div style="margin-bottom:12px">
-      <button class="btn btn-primary" onclick="showNewProgress()">+ 新增进度节点</button>
-    </div>
-    <div id="progressTimeline" style="padding:8px 0 80px">
+    <div id="progressTimeline" style="padding:8px 0 16px">
       <div class="loading">载入中…</div>
+    </div>
+    <div style="padding:8px 0 0;border-top:1px solid var(--sep)">
+      <button class="btn btn-primary" onclick="showNewProgress()" style="width:100%">+ 新增进度节点</button>
     </div>
   </div>
 
@@ -3002,54 +3002,25 @@ function extractHerProgress(content) {
 
 async function loadProgress() {
   try {
-    const [scratches, mems, arcs, progNotes] = await Promise.all([
-      api('scratch', { order:'created_at.asc', limit:500 }),
-      api('memories', { filter:'deleted_at=is.null&type=eq.insight', order:'created_at.desc', limit:500 }),
-      api('archives', { select:'id,title', filter:'deleted_at=is.null', limit:500 }),
-      api('progress_notes', { order:'created_at.asc', limit:500 })
-    ]);
-    PROG_NOTES = progNotes || [];
-    const arcMap = {};
-    (arcs||[]).forEach(a => { arcMap[a.id] = a; });
-
-    const nodes = (scratches||[]).map(s => {
-      const prog = extractHerProgress(s.content);
-      if (!prog) return null;
-      const arc = s.archive_id ? arcMap[s.archive_id] : null;
-      const sTime = new Date(s.created_at).getTime();
-      const nearMem = (mems||[]).find(m => Math.abs(new Date(m.created_at).getTime() - sTime) < 2*3600*1000);
-      return { id: s.id, created_at: s.created_at, arcTitle: arc?.title || '未知', summary: prog.summary, full: prog.full, memory: nearMem || null };
-    }).filter(Boolean);
-
+    const progNotes = await api('progress_notes', { order:'created_at.asc', limit:500 }) || [];
+    PROG_NOTES = progNotes;
     const el = document.getElementById('progressTimeline');
-    if (!nodes.length) { el.innerHTML = '<div class="empty"><div class="empty-zh">还没有进度记录</div><div class="empty-en" style="font-size:12px;margin-top:4px">在归档便签里写分析后显示</div></div>'; return; }
+
+    if (!PROG_NOTES.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-zh">还没有进度记录</div><div class="empty-en" style="font-size:12px;margin-top:4px">点上方按钮新增</div></div>';
+      return;
+    }
 
     let h = '<div style="position:relative;padding-left:32px">'
       + '<div style="position:absolute;left:12px;top:0;bottom:0;width:1px;background:var(--sep)"></div>';
 
-    nodes.forEach(n => {
-      const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
-      const dateStr = bjt.toISOString().slice(0,10);
-      const dotColor = n.memory ? 'var(--text2)' : 'rgba(196,135,46,0.8)';
-      h += '<div style="margin-bottom:20px;position:relative">'
-        + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:' + dotColor + ';border:2px solid var(--bg)"></div>'
-        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + ' · ' + n.arcTitle + '</div>'
-        + '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:12px;cursor:pointer" data-pid="' + n.id + '" onclick="toggleProgress(this.dataset.pid)">'
-        + '<div style="font-size:14px;line-height:1.7;color:var(--text)">' + n.summary + (n.summary.length>=120?'…':'') + '</div>'
-        + '<div id="pg_' + n.id + '" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--sep);font-size:13px;line-height:1.75;color:var(--text2);white-space:pre-wrap">' + n.full
-        + (n.memory ? '<div style="margin-top:8px;padding:8px 10px;background:var(--bg2);border-radius:8px;border-left:2px solid var(--text3);font-size:12px;color:var(--text3)"><div style="font-size:10px;font-family:var(--sans);margin-bottom:2px">关联记忆</div>' + n.memory.content.slice(0,100) + '…</div>' : '')
-        + '</div>'
-        + '</div></div>';
-    });
-
-    // 手动条目也加进时间线
-    (PROG_NOTES||[]).forEach(n => {
+    PROG_NOTES.forEach(n => {
       const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
       const dateStr = bjt.toISOString().slice(0,10);
       h += '<div style="margin-bottom:20px;position:relative">'
         + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--text2);border:2px solid var(--bg)"></div>'
-        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + (n.archive_title?' · '+n.archive_title:'') + ' · 手动</div>'
-        + '<div style="background:rgba(90,90,90,0.04);border:1px solid var(--sep);border-radius:10px;padding:12px">'
+        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + (n.archive_title?' · '+n.archive_title:'') + '</div>'
+        + '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:12px">'
         + '<div style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word">' + n.content + '</div>'
         + '<button style="margin-top:8px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" onclick="editProgressNote(this.dataset.id)">编辑</button>'
         + '</div></div>';
