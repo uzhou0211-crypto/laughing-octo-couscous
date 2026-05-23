@@ -335,6 +335,81 @@ textarea { min-height: 110px; }
   height: 1px; background: var(--sep); margin: 16px 0;
 }
 </style>
+<style>
+#lockScreen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg, #fff);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+.lock-title {
+  font-size: 13px;
+  font-family: -apple-system, system-ui;
+  color: #888;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.lock-dots {
+  display: flex;
+  gap: 16px;
+}
+
+.lock-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid #333;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.lock-dot.filled { background: #333; border-color: #333; }
+.lock-dot.error { border-color: #ff3b30; background: #ff3b30; }
+
+.lock-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 12px;
+}
+
+.lock-key {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.06);
+  border: none;
+  font-size: 26px;
+  font-weight: 300;
+  font-family: -apple-system, system-ui;
+  color: #111;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lock-key:active { background: rgba(0,0,0,0.15); }
+.lock-key.wide { border-radius: 36px; font-size: 15px; }
+.lock-key.del { font-size: 20px; }
+
+.lock-error-msg {
+  font-size: 13px;
+  font-family: -apple-system, system-ui;
+  color: #ff3b30;
+  height: 18px;
+  transition: opacity 0.3s;
+}
+</style>
 </head>
 <body>
 
@@ -613,6 +688,10 @@ textarea { min-height: 110px; }
         </div>
         <div class="row" onclick="resetConfig()">
           <div class="row-main"><div class="row-title" style="color:#ff3b30">重新配置</div></div>
+          <div class="chevron">›</div>
+        </div>
+        <div class="row" onclick="resetPin()">
+          <div class="row-main"><div class="row-title">重置密码</div><div class="row-sub">修改6位解锁密码</div></div>
           <div class="chevron">›</div>
         </div>
         <div class="row" onclick="showRecentDeleted()">
@@ -3330,6 +3409,134 @@ if (SB.url && SB.key) {
   document.getElementById('mainApp').style.display='block';
   init();
 }
+</script>
+<script>
+// ── 密码锁 ──
+let lockBuffer = '';
+const LOCK_KEY = 'app_pin';
+const LOCK_UNLOCKED_KEY = 'app_unlocked_until';
+const UNLOCK_DURATION = 30 * 60 * 1000; // 30分钟内不重复验证
+
+function initLock() {
+  const pin = localStorage.getItem(LOCK_KEY);
+  if (!pin) {
+    // 第一次使用，设置密码
+    showSetPin();
+    return;
+  }
+  // 检查是否在有效期内已解锁
+  const until = parseInt(localStorage.getItem(LOCK_UNLOCKED_KEY) || '0');
+  if (Date.now() < until) {
+    document.getElementById('lockScreen').style.display = 'none';
+    return;
+  }
+  document.getElementById('lockScreen').style.display = 'flex';
+}
+
+function showSetPin() {
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.querySelector('.lock-title').textContent = '设置6位密码';
+  lockBuffer = '';
+  updateDots();
+  // 标记为设置模式
+  document.getElementById('lockScreen').dataset.mode = 'set';
+  document.getElementById('lockScreen').dataset.firstPin = '';
+}
+
+function lockInput(n) {
+  if (lockBuffer.length >= 6) return;
+  lockBuffer += n;
+  updateDots();
+  if (lockBuffer.length === 6) {
+    setTimeout(() => processPin(), 150);
+  }
+}
+
+function lockDelete() {
+  if (lockBuffer.length > 0) {
+    lockBuffer = lockBuffer.slice(0, -1);
+    updateDots();
+  }
+}
+
+function updateDots(state) {
+  for (let i = 0; i < 6; i++) {
+    const d = document.getElementById('d' + i);
+    d.classList.remove('filled', 'error');
+    if (state === 'error') d.classList.add('error');
+    else if (i < lockBuffer.length) d.classList.add('filled');
+  }
+}
+
+function processPin() {
+  const screen = document.getElementById('lockScreen');
+  const mode = screen.dataset.mode;
+
+  if (mode === 'set') {
+    if (!screen.dataset.firstPin) {
+      // 第一次输入
+      screen.dataset.firstPin = lockBuffer;
+      lockBuffer = '';
+      updateDots();
+      document.querySelector('.lock-title').textContent = '再次确认密码';
+    } else {
+      // 第二次确认
+      if (lockBuffer === screen.dataset.firstPin) {
+        localStorage.setItem(LOCK_KEY, btoa(lockBuffer));
+        setUnlocked();
+        screen.style.display = 'none';
+        document.querySelector('.lock-title').textContent = '输入密码';
+        screen.dataset.mode = '';
+        screen.dataset.firstPin = '';
+      } else {
+        showLockError('密码不一致，重新设置');
+        setTimeout(() => {
+          screen.dataset.firstPin = '';
+          lockBuffer = '';
+          updateDots();
+          document.querySelector('.lock-title').textContent = '设置6位密码';
+        }, 800);
+      }
+    }
+  } else {
+    // 验证模式
+    const pin = localStorage.getItem(LOCK_KEY);
+    if (btoa(lockBuffer) === pin) {
+      setUnlocked();
+      screen.style.display = 'none';
+      lockBuffer = '';
+      updateDots();
+    } else {
+      showLockError('密码错误');
+      setTimeout(() => {
+        lockBuffer = '';
+        updateDots();
+      }, 800);
+    }
+  }
+}
+
+function showLockError(msg) {
+  updateDots('error');
+  const el = document.getElementById('lockErrMsg');
+  el.textContent = msg;
+  setTimeout(() => { el.textContent = ''; }, 2000);
+}
+
+function setUnlocked() {
+  localStorage.setItem(LOCK_UNLOCKED_KEY, String(Date.now() + UNLOCK_DURATION));
+}
+
+// 重置密码——在设置页可以调用
+function resetPin() {
+  if (!confirm('确认重置密码？')) return;
+  localStorage.removeItem(LOCK_KEY);
+  localStorage.removeItem(LOCK_UNLOCKED_KEY);
+  showSetPin();
+}
+
+// 初始化
+initLock();
 </script>
 </body>
 </html>
