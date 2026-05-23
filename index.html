@@ -559,6 +559,10 @@ textarea { min-height: 110px; }
           <div class="row-main"><div class="row-title" style="color:#ff3b30">重新配置</div></div>
           <div class="chevron">›</div>
         </div>
+        <div class="row" onclick="showRecentDeleted()">
+          <div class="row-main"><div class="row-title">最近删除</div><div class="row-sub">30天内可恢复</div></div>
+          <div class="chevron">›</div>
+        </div>
       </div>
     </div>
     <div class="section">
@@ -692,11 +696,16 @@ function vc(v) { return v>0.3?'#2d7d46':v<-0.3?'#c0392b':'#555'; }
 let stack = [];
 
 function switchTab(tab) {
+  // 强制重置所有状态，防止卡住
+  stack = [];
+  arcSelectMode = false;
+  memSelectMode = false;
+  arcSelected = new Set();
+  memSelected = new Set();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.getElementById(`page${tab[0].toUpperCase()+tab.slice(1)}`).classList.add('active');
-  stack = [];
   const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', archives:'Archive', letters:'Letters', calendar:'Calendar', settings:'Settings' };
   const ZH = { memories:'记忆', knowledge:'知识', log:'心电图', archives:'归档', letters:'信', calendar:'日历', settings:'设置' };
   document.getElementById('navEn').textContent = EN[tab];
@@ -730,7 +739,7 @@ let MEM = [];
 
 async function loadMem() {
   try {
-    MEM = await api('memories',{order:'created_at.desc',limit:500})||[];
+    MEM = await api('memories',{filter:'deleted_at=is.null',order:'created_at.desc',limit:500})||[];
     renderMem(MEM);
   } catch(e) { document.getElementById('memList').innerHTML=`<div class="empty"><div class="empty-zh">加载失败</div></div>`; }
 }
@@ -990,9 +999,14 @@ async function saveMem(id) {
 }
 
 async function delMem(id) {
-  if (!confirm('确认删除？')) return;
-  try { await rm('memories',id); toast('已删除'); MEM=MEM.filter(m=>m.id!==id); goBack(); renderMem(MEM); }
-  catch(e) { toast('删除失败'); }
+  if (!confirm('确认删除？（可在最近删除中恢复）')) return;
+  try {
+    await upd('memories', id, { deleted_at: new Date().toISOString() });
+    toast('已删除');
+    MEM = MEM.filter(m => m.id !== id);
+    goBack();
+    renderMem(MEM);
+  } catch(e) { toast('删除失败'); }
 }
 
 // ── 新增记忆 ──
@@ -1272,8 +1286,8 @@ async function openKnw(id) {
     + (k.tags||[]).map(t=>'<span class="pill">'+t+'</span>').join('')
     + '</div></div>'
     + (k.answer
-      ? '<div class="d-card"><div class="d-content">' + k.answer + '</div></div>'
-      : '<div class="d-card" style="color:var(--text3);font-style:italic;font-size:14px">还没有回答…</div>')
+      ? '<div class="d-card" id="knwAnsCard_' + id + '"><div class="d-content">' + k.answer + '</div></div>'
+      : '<div class="d-card" id="knwAnsCard_' + id + '" style="color:var(--text3);font-style:italic;font-size:14px">还没有回答…</div>')
     + '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;margin-top:12px">'
     + '<span class="section-zh">评论</span>'
     + '<span class="section-en">Comments · ' + cmts.length + '</span></div>'
@@ -1364,11 +1378,26 @@ function goToArchive(arcId) {
 async function editKnwAnswer(knwId) {
   const k = KNW.find(x => x.id === knwId);
   if (!k) return;
-  const newAns = prompt('编辑回答：', k.answer || '');
-  if (newAns === null) return;
+  // 内联编辑——把回答卡片替换成编辑框
+  const ansCard = document.getElementById('knwAnsCard_' + knwId);
+  if (ansCard) {
+    ansCard.innerHTML = '<textarea id="knwAnsEdit" style="width:100%;min-height:120px;border:none;outline:none;font-size:15px;font-family:var(--serif);background:transparent;resize:vertical;line-height:1.65">' + (k.answer||'') + '</textarea>'
+      + '<div style="display:flex;gap:8px;margin-top:10px">'
+      + '<button class="btn btn-primary" style="flex:2" data-kid="' + knwId + '" onclick="saveKnwAnswerInline(this.dataset.kid)">保存</button>'
+      + '<button class="btn btn-ghost" style="flex:1" data-kid="' + knwId + '" onclick="openKnw(this.dataset.kid)">取消</button>'
+      + '</div>';
+  } else {
+    openKnw(knwId);
+  }
+}
+
+async function saveKnwAnswerInline(knwId) {
+  const newAns = document.getElementById('knwAnsEdit')?.value.trim();
+  if (newAns === undefined) return;
   try {
     await upd('knowledge', knwId, { answer: newAns, status: newAns ? 'answered' : 'pending', updated_at: new Date().toISOString() });
-    k.answer = newAns; k.status = newAns ? 'answered' : 'pending';
+    const k = KNW.find(x => x.id === knwId);
+    if (k) { k.answer = newAns; k.status = newAns ? 'answered' : 'pending'; }
     toast('已保存');
     openKnw(knwId);
   } catch(e) { toast('保存失败'); }
@@ -1377,9 +1406,22 @@ async function editKnwAnswer(knwId) {
 async function editKnwCmt(cmtId, knwId) {
   const btn = document.querySelector('[data-cid="' + cmtId + '"]');
   const row = btn?.closest('.row');
-  const current = row?.querySelector('[style*="font-size:14px"]')?.textContent || '';
-  const newTxt = prompt('编辑评论：', current);
-  if (!newTxt || newTxt === current) return;
+  if (!row) return;
+  const contentEl = row.querySelector('[style*="font-size:14px"]');
+  const current = contentEl?.textContent || '';
+  // 内联替换
+  const orig = row.innerHTML;
+  row.innerHTML = '<div class="row-main">'
+    + '<textarea id="cmtEdit_' + cmtId + '" style="width:100%;min-height:80px;border:none;outline:none;font-size:14px;font-family:var(--serif);background:transparent;resize:vertical;line-height:1.6">' + current + '</textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:8px">'
+    + '<button class="btn btn-primary" style="flex:2;padding:8px" data-cid="' + cmtId + '" data-kid="' + knwId + '" onclick="saveCmtInline(this.dataset.cid,this.dataset.kid)">保存</button>'
+    + '<button class="btn btn-ghost" style="flex:1;padding:8px" data-kid="\' + knwId + \'" onclick="openKnw(this.dataset.kid)">取消</button>'
+    + '</div></div>';
+}
+
+async function saveCmtInline(cmtId, knwId) {
+  const newTxt = document.getElementById('cmtEdit_' + cmtId)?.value.trim();
+  if (!newTxt) return;
   try {
     await upd('comments', cmtId, { content: newTxt });
     toast('已保存');
@@ -1524,7 +1566,7 @@ async function submitNewArchive() {
 
 async function loadArchives() {
   try {
-    ARC = await api('archives', { order:'created_at.desc', limit:200 }) || [];
+    ARC = await api('archives', { filter:'deleted_at=is.null', order:'created_at.desc', limit:200 }) || [];
     renderArchives(ARC);
   } catch(e) {
     document.getElementById('archiveList').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
@@ -1867,13 +1909,94 @@ async function saveArcNote(arcId) {
 }
 
 async function delArchive(id) {
-  if (!confirm('确认删除这条归档？')) return;
+  if (!confirm('确认删除这条归档？（可在最近删除中恢复）')) return;
   try {
-    await rm('archives', id);
+    await upd('archives', id, { deleted_at: new Date().toISOString() });
     toast('已删除');
     ARC = ARC.filter(a => a.id !== id);
     goBack();
     renderArchives(ARC);
+  } catch(e) { toast('删除失败'); }
+}
+
+// ── 最近删除 ──
+async function showRecentDeleted() {
+  stack.push('pageSettings');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageDetail').classList.add('active');
+  document.getElementById('navZh').textContent = '最近删除';
+  document.getElementById('navEn').textContent = 'Recently Deleted';
+
+  const thirtyDaysAgo = new Date(Date.now() - 30*24*3600*1000).toISOString();
+  try {
+    const [delArcs, delMems] = await Promise.all([
+      api('archives', { filter:'deleted_at=gte.'+thirtyDaysAgo, order:'deleted_at.desc', limit:100 }) || [],
+      api('memories', { filter:'deleted_at=gte.'+thirtyDaysAgo, order:'deleted_at.desc', limit:100 }) || []
+    ]);
+
+    let h = '';
+    if (!delArcs.length && !delMems.length) {
+      h = '<div class="empty"><div class="empty-en">Empty</div><div class="empty-zh">没有最近删除的内容</div></div>';
+    } else {
+      if (delMems.length) {
+        h += '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px"><span class="section-zh">记忆</span><span class="section-n">' + delMems.length + '</span></div>';
+        h += '<div class="card-group" style="margin-bottom:16px">';
+        delMems.forEach(m => {
+          const bjt = new Date(new Date(m.deleted_at).getTime() + 8*3600*1000);
+          const daysLeft = 30 - Math.floor((Date.now() - new Date(m.deleted_at).getTime()) / 86400000);
+          h += '<div class="row" style="cursor:default;align-items:flex-start">'
+            + '<div class="row-main">'
+            + '<div class="row-title">' + m.content.slice(0,50) + (m.content.length>50?'…':'') + '</div>'
+            + '<div class="row-sub">还剩 ' + daysLeft + ' 天 · ' + bjt.toISOString().slice(0,10) + '</div>'
+            + '</div>'
+            + '<div style="display:flex;gap:8px;flex-shrink:0">'
+            + '<button data-id="' + m.id + '" data-table="memories" onclick="restoreItem(this.dataset.id,this.dataset.table)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:4px 10px;font-size:12px;font-family:var(--sans);color:var(--text2);cursor:pointer">恢复</button>'
+            + '<button data-id="' + m.id + '" data-table="memories" onclick="permanentDelete(this.dataset.id,this.dataset.table)" style="background:none;border:none;font-size:12px;font-family:var(--sans);color:#ff3b30;cursor:pointer">永久删除</button>'
+            + '</div></div>';
+        });
+        h += '</div>';
+      }
+      if (delArcs.length) {
+        h += '<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px"><span class="section-zh">归档</span><span class="section-n">' + delArcs.length + '</span></div>';
+        h += '<div class="card-group">';
+        delArcs.forEach(a => {
+          const bjt = new Date(new Date(a.deleted_at).getTime() + 8*3600*1000);
+          const daysLeft = 30 - Math.floor((Date.now() - new Date(a.deleted_at).getTime()) / 86400000);
+          h += '<div class="row" style="cursor:default;align-items:flex-start">'
+            + '<div class="row-main">'
+            + '<div class="row-title">' + (a.title || a.content.slice(0,50)) + '</div>'
+            + '<div class="row-sub">还剩 ' + daysLeft + ' 天 · ' + bjt.toISOString().slice(0,10) + '</div>'
+            + '</div>'
+            + '<div style="display:flex;gap:8px;flex-shrink:0">'
+            + '<button data-id="' + a.id + '" data-table="archives" onclick="restoreItem(this.dataset.id,this.dataset.table)" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:4px 10px;font-size:12px;font-family:var(--sans);color:var(--text2);cursor:pointer">恢复</button>'
+            + '<button data-id="' + a.id + '" data-table="archives" onclick="permanentDelete(this.dataset.id,this.dataset.table)" style="background:none;border:none;font-size:12px;font-family:var(--sans);color:#ff3b30;cursor:pointer">永久删除</button>'
+            + '</div></div>';
+        });
+        h += '</div>';
+      }
+    }
+    document.getElementById('detailContent').innerHTML = h;
+  } catch(e) {
+    document.getElementById('detailContent').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
+  }
+}
+
+async function restoreItem(id, table) {
+  try {
+    await upd(table, id, { deleted_at: null });
+    toast('已恢复');
+    if (table === 'memories') await loadMem();
+    else await loadArchives();
+    showRecentDeleted();
+  } catch(e) { toast('恢复失败'); }
+}
+
+async function permanentDelete(id, table) {
+  if (!confirm('永久删除后无法恢复，确认？')) return;
+  try {
+    await rm(table, id);
+    toast('已永久删除');
+    showRecentDeleted();
   } catch(e) { toast('删除失败'); }
 }
 
@@ -2324,9 +2447,9 @@ function updateArcSelectCount() {
 
 async function deleteSelectedArcs() {
   if (!arcSelected.size) { toast('请先选择'); return; }
-  if (!confirm('确认删除选中的 ' + arcSelected.size + ' 条归档？')) return;
+  if (!confirm('确认删除选中的 ' + arcSelected.size + ' 条归档？（可在最近删除中恢复）')) return;
   try {
-    for (const id of arcSelected) await rm('archives', id);
+    for (const id of arcSelected) await upd('archives', id, { deleted_at: new Date().toISOString() });
     ARC = ARC.filter(a => !arcSelected.has(a.id));
     toast('已删除 ' + arcSelected.size + ' 条');
     exitArcSelect();
@@ -2372,9 +2495,9 @@ function updateMemSelectCount() {
 
 async function deleteSelectedMems() {
   if (!memSelected.size) { toast('请先选择'); return; }
-  if (!confirm('确认删除选中的 ' + memSelected.size + ' 条记忆？')) return;
+  if (!confirm('确认删除选中的 ' + memSelected.size + ' 条记忆？（可在最近删除中恢复）')) return;
   try {
-    for (const id of memSelected) await rm('memories', id);
+    for (const id of memSelected) await upd('memories', id, { deleted_at: new Date().toISOString() });
     MEM = MEM.filter(m => !memSelected.has(m.id));
     toast('已删除 ' + memSelected.size + ' 条');
     exitMemSelect();
@@ -2423,9 +2546,21 @@ async function addScratchToArc(arcId) {
 }
 
 async function editScratch(id, arcId) {
-  const current = document.querySelector('[data-sid="' + id + '"]')?.closest('div[style*="position:relative"]')?.querySelector('div[style*="font-size:14px"]')?.textContent || '';
-  const newTxt = prompt('编辑便签：', current);
-  if (!newTxt || newTxt === current) return;
+  // 找到便签容器，内联替换成编辑框
+  const btn = document.querySelector('[data-sid="' + id + '"]');
+  const card = btn?.closest('div[style*="position:relative"]');
+  if (!card) return;
+  const current = card.querySelector('div[style*="font-size:14px"]')?.textContent || '';
+  card.innerHTML = '<textarea id="scratchEdit_' + id + '" style="width:100%;min-height:80px;border:none;outline:none;font-size:14px;font-family:var(--serif);background:transparent;resize:vertical;line-height:1.6">' + current + '</textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:8px">'
+    + '<button class="btn btn-primary" style="flex:2;padding:8px" data-sid="' + id + '" data-aid="' + arcId + '" onclick="saveScratchInline(this.dataset.sid,this.dataset.aid)">保存</button>'
+    + '<button class="btn btn-ghost" style="flex:1;padding:8px" data-aid="' + arcId + '" onclick="loadScratchForArc(this.dataset.aid)">取消</button>'
+    + '</div>';
+}
+
+async function saveScratchInline(id, arcId) {
+  const newTxt = document.getElementById('scratchEdit_' + id)?.value.trim();
+  if (!newTxt) return;
   try {
     await upd('scratch', id, { content: newTxt });
     await loadScratchForArc(arcId);
