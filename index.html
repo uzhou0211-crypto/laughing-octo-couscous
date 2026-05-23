@@ -543,7 +543,63 @@ textarea { min-height: 110px; }
     <div id="calendarContent"></div>
   </div>
 
+  <!-- 理论家 -->
+  <div class="page" id="pageTheorists">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div class="search" style="flex:1;margin-bottom:0">
+        <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
+      </div>
+      <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap" onclick="showNewThNote()">+ 新增</button>
+    </div>
+    <div id="thLayout" style="display:flex;height:calc(100vh - 210px)">
+      <div id="thList" style="width:130px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--sep)">
+        <div class="loading">载入中…</div>
+      </div>
+      <div id="thDetail" style="flex:1;overflow-y:auto;padding:0 12px">
+        <div style="padding:40px 0;text-align:center;color:var(--text3);font-style:italic;font-size:13px">选择一位理论家</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 进度 -->
+  <div class="page" id="pageProgress">
+    <div style="margin-bottom:12px">
+      <button class="btn btn-primary" onclick="showNewProgress()">+ 新增进度节点</button>
+    </div>
+    <div id="progressTimeline" style="padding:8px 0 80px">
+      <div class="loading">载入中…</div>
+    </div>
+  </div>
+
   <!-- 设置 -->
+  <!-- 理论家 -->
+  <div class="page" id="pageTheorists">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <div class="search" style="flex:1;margin-bottom:0">
+        <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
+      </div>
+      <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap" onclick="showNewThNote()">+ 新增</button>
+    </div>
+    <div id="thLayout" style="display:flex;height:calc(100vh - 210px)">
+      <div id="thList" style="width:130px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--sep)">
+        <div class="loading">载入中…</div>
+      </div>
+      <div id="thDetail" style="flex:1;overflow-y:auto;padding:0 12px">
+        <div style="padding:40px 0;text-align:center;color:var(--text3);font-style:italic;font-size:13px">选择一位理论家</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 进度 -->
+  <div class="page" id="pageProgress">
+    <div style="margin-bottom:12px">
+      <button class="btn btn-primary" onclick="showNewProgress()">+ 新增进度节点</button>
+    </div>
+    <div id="progressTimeline" style="padding:8px 0 80px">
+      <div class="loading">载入中…</div>
+    </div>
+  </div>
+
   <!-- 设置 -->
   <div class="page" id="pageSettings">
     <div class="section">
@@ -609,6 +665,12 @@ textarea { min-height: 110px; }
     </div>
     <div class="tab" onclick="switchTab('calendar')" id="tab-calendar">
       <div class="tab-zh">日历</div><div class="tab-en">Calendar</div>
+    </div>
+    <div class="tab" onclick="switchTab('theorists')" id="tab-theorists">
+      <div class="tab-zh">理论家</div><div class="tab-en">Theorists</div>
+    </div>
+    <div class="tab" onclick="switchTab('progress')" id="tab-progress">
+      <div class="tab-zh">进度</div><div class="tab-en">Progress</div>
     </div>
     <div class="tab" onclick="switchTab('settings')" id="tab-settings">
       <div class="tab-zh">设置</div><div class="tab-en">Settings</div>
@@ -706,7 +768,7 @@ function switchTab(tab) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(`tab-${tab}`).classList.add('active');
   document.getElementById(`page${tab[0].toUpperCase()+tab.slice(1)}`).classList.add('active');
-  const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', archives:'Archive', letters:'Letters', calendar:'Calendar', settings:'Settings' };
+  const EN = { memories:'Memory', knowledge:'Knowledge', log:'Log', archives:'Archive', letters:'Letters', calendar:'Calendar', theorists:'Theorists', progress:'Progress', settings:'Settings' };
   const ZH = { memories:'记忆', knowledge:'知识', log:'心电图', archives:'归档', letters:'信', calendar:'日历', settings:'设置' };
   document.getElementById('navEn').textContent = EN[tab];
   document.getElementById('navZh').textContent = ZH[tab];
@@ -714,6 +776,8 @@ function switchTab(tab) {
   if (tab==='archives') loadArchives();
   if (tab==='letters') loadLetters();
   if (tab==='calendar') loadCalendar();
+  if (tab==='theorists') loadTheorists();
+  if (tab==='progress') loadProgress();
   if (tab==='settings') loadSettings();
 }
 
@@ -2849,6 +2913,365 @@ function calNext() {
   loadCalendar();
 }
 
+// ── 理论家索引 ──
+let ALL_COMMENTS = [];
+let ALL_THEORISTS = [];
+let CURRENT_THEORIST = null;
+
+const KNOWN_THEORISTS = [
+  'Freud','Lacan','Jung','Klein','Winnicott','Bowlby','Ainsworth','Yalom','Rogers',
+  'Frankl','Maslow','Erikson','Foucault','Derrida','Deleuze','Butler','de Certeau',
+  'Heidegger','Sartre','Camus','Levinas','Arendt','Bourdieu','Habermas',
+  'Wittgenstein','Austin','Searle','Piaget','Vygotsky','Bandura','Dweck',
+  'Seligman','Damasio','LeDoux','Panksepp','Porges','van der Kolk','Fonagy',
+  'Keltner','Ekman','Gottman','Baumeister','Kahneman','Tversky','Ariely',
+  'Pennebaker','Nader','Rescorla','Wagner','Lane','Lieberman','Kircanski',
+  'Mill','Kant','Rawls','Nussbaum','Durkheim','Goffman','Said','hooks','Fanon',
+  'Hayes','Beck','Linehan','Bion','Kohut','Kernberg','Rotter','Penney','Cohen',
+];
+
+function extractTheorists(text) {
+  const found = new Set();
+  const pattern = /([A-Z][a-záéíóúàèìòùâêîôûäëïöü\-]+(?:\s+[A-Z][a-záéíóúàèìòùâêîôûäëïöü\-]+)*)\s*[（(]\s*\d{4}\s*[）)]/g;
+  let m;
+  while ((m = pattern.exec(text)) !== null) {
+    const name = m[1].trim();
+    if (name.split(' ').length <= 3 && name.length > 2) found.add(name);
+  }
+  KNOWN_THEORISTS.forEach(t => { if (text.includes(t)) found.add(t); });
+  return [...found];
+}
+
+async function loadTheorists() {
+  if (ALL_COMMENTS.length) { await loadThNotes(); renderTheoristList(ALL_THEORISTS); return; }
+  try {
+    await loadThNotes();
+    ALL_COMMENTS = await api('comments', { order:'created_at.desc', limit:2000 }) || [];
+    const map = {};
+    ALL_COMMENTS.forEach(c => {
+      extractTheorists(c.content||'').forEach(name => {
+        if (!map[name]) map[name] = [];
+        map[name].push(c);
+      });
+    });
+    // 合并手动笔记里的理论家
+    TH_NOTES.forEach(n => { if (!map[n.name]) map[n.name] = []; });
+    ALL_THEORISTS = Object.entries(map)
+      .sort((a,b) => b[1].length - a[1].length)
+      .map(([name, cites]) => ({ name, count: cites.length, comments: cites }));
+    renderTheoristList(ALL_THEORISTS);
+  } catch(e) { document.getElementById('thList').innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text3)">加载失败</div>'; }
+}
+
+function renderTheoristList(list) {
+  const el = document.getElementById('thList');
+  if (!list.length) { el.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text3)">无结果</div>'; return; }
+  el.innerHTML = list.map(t =>
+    '<div style="padding:10px 12px;cursor:pointer;border-left:2px solid ' + (CURRENT_THEORIST===t.name?'var(--text)':'transparent') + ';background:' + (CURRENT_THEORIST===t.name?'var(--bg2)':'') + '" data-name="' + t.name + '" onclick="showTheorist(this.dataset.name)">'
+    + '<div style="font-size:12px;color:var(--text);line-height:1.4">' + t.name + '</div>'
+    + '<div style="font-size:10px;color:var(--text3);font-family:var(--sans);margin-top:2px">' + t.count + ' 条</div>'
+    + '</div>'
+  ).join('');
+}
+
+function filterTheorists() {
+  const q = document.getElementById('thSearch').value.toLowerCase();
+  renderTheoristList(q ? ALL_THEORISTS.filter(t => t.name.toLowerCase().includes(q)) : ALL_THEORISTS);
+}
+
+function showTheorist(name) {
+  CURRENT_THEORIST = name;
+  renderTheoristList(ALL_THEORISTS.filter(t => !document.getElementById('thSearch').value || t.name.toLowerCase().includes(document.getElementById('thSearch').value.toLowerCase())));
+  const t = ALL_THEORISTS.find(x => x.name === name);
+  if (!t) return;
+  const el = document.getElementById('thDetail');
+  let h = '<div style="padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--sep)">'
+    + '<div style="font-size:16px;font-weight:500;font-style:italic">' + name + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);font-family:var(--sans);margin-top:2px">' + t.count + ' 条引用</div>'
+    + '</div>';
+  t.comments.forEach(c => {
+    const lines = c.content.split('\n').filter(l => l.includes(name)).slice(0,3).join('\n') || c.content.slice(0,200);
+    const highlighted = lines.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'), '<mark style="background:rgba(196,135,46,0.2);border-radius:2px;padding:0 2px">' + name + '</mark>');
+    const bjt = new Date(new Date(c.created_at).getTime() + 8*3600*1000);
+    h += '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:12px;margin-bottom:8px">'
+      + '<div style="font-size:10px;color:var(--text3);font-family:var(--sans);margin-bottom:6px">' + bjt.toISOString().slice(0,10) + ' · ' + (c.author==='ai'?'我的分析':'你的回复') + '</div>'
+      + '<div style="font-size:13px;line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word">' + highlighted + '</div>'
+      + '</div>';
+  });
+  el.innerHTML = h;
+  el.scrollTop = 0;
+}
+
+// ── 进度时间线 ──
+function extractHerProgress(content) {
+  if (!content) return null;
+  const lines = content.split('\n').filter(l => l.trim());
+  let herLines = [];
+  let inHer = false;
+  for (const line of lines) {
+    if (line.includes('分析她') || line.includes('===她')) { inHer = true; continue; }
+    if (inHer && (line.includes('分析他') || line.includes('===他'))) { inHer = false; continue; }
+    if (inHer && line.trim()) herLines.push(line);
+  }
+  if (!herLines.length) {
+    herLines = lines.filter(l => l.includes('她') && (l.includes('走到了')||l.includes('做到了')||l.includes('发现了')||l.includes('完成了')||l.includes('感受到'))).slice(0,3);
+  }
+  if (!herLines.length) return null;
+  return {
+    summary: herLines.slice(0,2).join(' ').replace(/【.*?】/g,'').trim().slice(0,120),
+    full: herLines.join('\n')
+  };
+}
+
+async function loadProgress() {
+  try {
+    const [scratches, mems, arcs, progNotes] = await Promise.all([
+      api('scratch', { order:'created_at.asc', limit:500 }),
+      api('memories', { filter:'deleted_at=is.null&type=eq.insight', order:'created_at.desc', limit:500 }),
+      api('archives', { select:'id,title', filter:'deleted_at=is.null', limit:500 }),
+      api('progress_notes', { order:'created_at.asc', limit:500 })
+    ]);
+    PROG_NOTES = progNotes || [];
+    const arcMap = {};
+    (arcs||[]).forEach(a => { arcMap[a.id] = a; });
+
+    const nodes = (scratches||[]).map(s => {
+      const prog = extractHerProgress(s.content);
+      if (!prog) return null;
+      const arc = s.archive_id ? arcMap[s.archive_id] : null;
+      const sTime = new Date(s.created_at).getTime();
+      const nearMem = (mems||[]).find(m => Math.abs(new Date(m.created_at).getTime() - sTime) < 2*3600*1000);
+      return { id: s.id, created_at: s.created_at, arcTitle: arc?.title || '未知', summary: prog.summary, full: prog.full, memory: nearMem || null };
+    }).filter(Boolean);
+
+    const el = document.getElementById('progressTimeline');
+    if (!nodes.length) { el.innerHTML = '<div class="empty"><div class="empty-zh">还没有进度记录</div><div class="empty-en" style="font-size:12px;margin-top:4px">在归档便签里写分析后显示</div></div>'; return; }
+
+    let h = '<div style="position:relative;padding-left:32px">'
+      + '<div style="position:absolute;left:12px;top:0;bottom:0;width:1px;background:var(--sep)"></div>';
+
+    nodes.forEach(n => {
+      const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
+      const dateStr = bjt.toISOString().slice(0,10);
+      const dotColor = n.memory ? 'var(--text2)' : 'rgba(196,135,46,0.8)';
+      h += '<div style="margin-bottom:20px;position:relative">'
+        + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:' + dotColor + ';border:2px solid var(--bg)"></div>'
+        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + ' · ' + n.arcTitle + '</div>'
+        + '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:12px;cursor:pointer" data-pid="' + n.id + '" onclick="toggleProgress(this.dataset.pid)">'
+        + '<div style="font-size:14px;line-height:1.7;color:var(--text)">' + n.summary + (n.summary.length>=120?'…':'') + '</div>'
+        + '<div id="pg_' + n.id + '" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--sep);font-size:13px;line-height:1.75;color:var(--text2);white-space:pre-wrap">' + n.full
+        + (n.memory ? '<div style="margin-top:8px;padding:8px 10px;background:var(--bg2);border-radius:8px;border-left:2px solid var(--text3);font-size:12px;color:var(--text3)"><div style="font-size:10px;font-family:var(--sans);margin-bottom:2px">关联记忆</div>' + n.memory.content.slice(0,100) + '…</div>' : '')
+        + '</div>'
+        + '</div></div>';
+    });
+
+    // 手动条目也加进时间线
+    (PROG_NOTES||[]).forEach(n => {
+      const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
+      const dateStr = bjt.toISOString().slice(0,10);
+      h += '<div style="margin-bottom:20px;position:relative">'
+        + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--text2);border:2px solid var(--bg)"></div>'
+        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + (n.archive_title?' · '+n.archive_title:'') + ' · 手动</div>'
+        + '<div style="background:rgba(90,90,90,0.04);border:1px solid var(--sep);border-radius:10px;padding:12px">'
+        + '<div style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word">' + n.content + '</div>'
+        + '<button style="margin-top:8px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" onclick="editProgressNote(this.dataset.id)">编辑</button>'
+        + '</div></div>';
+    });
+
+    h += '</div>';
+    el.innerHTML = h;
+  } catch(e) { document.getElementById('progressTimeline').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>'; }
+}
+
+function toggleProgress(id) {
+  const el = document.getElementById('pg_' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// ── 理论家手动条目 ──
+let TH_NOTES = [];
+
+async function loadThNotes() {
+  TH_NOTES = await api('theorist_notes', { order:'name.asc', limit:500 }) || [];
+}
+
+function showNewThNote() {
+  const name = prompt('理论家名字：');
+  if (!name || !name.trim()) return;
+  showThNoteEditor(null, name.trim());
+}
+
+function showThNoteEditor(id, name, existingNote='') {
+  // 在右侧详情区展示编辑框
+  const el = document.getElementById('thDetail');
+  el.innerHTML = '<div style="padding:4px 0 12px;border-bottom:1px solid var(--sep);margin-bottom:12px">'
+    + '<div style="font-size:16px;font-weight:500;font-style:italic">' + name + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);font-family:var(--sans);margin-top:2px">' + (id ? '编辑手动条目' : '新增手动条目') + '</div>'
+    + '</div>'
+    + '<textarea id="thNoteInput" placeholder="写下关于这位理论家的分析、引用或笔记…" style="width:100%;min-height:200px;border:1px solid var(--sep);border-radius:10px;padding:12px;font-size:14px;font-family:var(--serif);color:var(--text);background:var(--card);outline:none;resize:vertical;line-height:1.7">' + existingNote + '</textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<button class="btn btn-primary" style="flex:2" data-id="' + (id||'') + '" data-name="' + name + '" onclick="saveThNote(this.dataset.id,this.dataset.name)">保存</button>'
+    + (id ? '<button class="btn btn-danger" style="flex:1" data-id="' + id + '" data-name="' + name + '" onclick="deleteThNote(this.dataset.id,this.dataset.name)">删除</button>' : '')
+    + '<button class="btn btn-ghost" style="flex:1" data-name="' + name + '" onclick="showTheorist(this.dataset.name)">取消</button>'
+    + '</div>';
+}
+
+async function saveThNote(id, name) {
+  const note = document.getElementById('thNoteInput')?.value.trim();
+  if (!note) { toast('内容不能为空'); return; }
+  try {
+    if (id) {
+      await upd('theorist_notes', id, { note, name, updated_at: new Date().toISOString() });
+    } else {
+      await api('theorist_notes', { method:'POST', body:{ name, note } });
+    }
+    await loadThNotes();
+    toast('已保存');
+    showTheorist(name);
+  } catch(e) { toast('保存失败'); }
+}
+
+async function deleteThNote(id, name) {
+  if (!confirm('删除这条手动条目？')) return;
+  try {
+    await rm('theorist_notes', id);
+    TH_NOTES = TH_NOTES.filter(n => n.id !== id);
+    toast('已删除');
+    showTheorist(name);
+  } catch(e) { toast('删除失败'); }
+}
+
+// 改showTheorist加手动条目显示
+const _origShowTheorist = showTheorist;
+// 重写showTheorist
+function showTheorist(name) {
+  CURRENT_THEORIST = name;
+  filterTheorists();
+
+  const t = ALL_THEORISTS.find(x => x.name === name);
+  const manualNotes = TH_NOTES.filter(n => n.name === name);
+  const el = document.getElementById('thDetail');
+
+  let h = '<div style="padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--sep);display:flex;align-items:flex-start;justify-content:space-between">'
+    + '<div>'
+    + '<div style="font-size:16px;font-weight:500;font-style:italic">' + name + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);font-family:var(--sans);margin-top:2px">' + (t ? t.count + ' 条自动引用' : '无自动引用') + (manualNotes.length ? ' · ' + manualNotes.length + ' 条手动笔记' : '') + '</div>'
+    + '</div>'
+    + '<button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;white-space:nowrap" data-name="' + name + '" onclick="showThNoteEditor(null,this.dataset.name)">+ 笔记</button>'
+    + '</div>';
+
+  // 手动笔记
+  if (manualNotes.length) {
+    h += '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase">手动笔记</div>';
+    manualNotes.forEach(n => {
+      const bjt = new Date(new Date(n.updated_at||n.created_at).getTime() + 8*3600*1000);
+      h += '<div style="background:rgba(196,135,46,0.06);border:1px solid rgba(196,135,46,0.2);border-radius:10px;padding:12px;margin-bottom:8px">'
+        + '<div style="display:flex;justify-content:space-between;margin-bottom:6px">'
+        + '<div style="font-size:10px;color:var(--text3);font-family:var(--sans)">' + bjt.toISOString().slice(0,10) + ' · 手动</div>'
+        + '<button style="background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" data-name="' + name + '" data-note="' + encodeURIComponent(n.note) + '" onclick="showThNoteEditor(this.dataset.id,this.dataset.name,decodeURIComponent(this.dataset.note))">编辑</button>'
+        + '</div>'
+        + '<div style="font-size:13px;line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word">' + n.note + '</div>'
+        + '</div>';
+    });
+    if (t?.count) h += '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);letter-spacing:1px;margin:12px 0 8px;text-transform:uppercase">自动提取</div>';
+  }
+
+  // 自动提取
+  if (t) {
+    t.comments.forEach(c => {
+      const lines = c.content.split('\n').filter(l => l.includes(name)).slice(0,3).join('\n') || c.content.slice(0,200);
+      const highlighted = lines.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'), '<mark style="background:rgba(196,135,46,0.2);border-radius:2px;padding:0 2px">' + name + '</mark>');
+      const bjt = new Date(new Date(c.created_at).getTime() + 8*3600*1000);
+      h += '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:12px;margin-bottom:8px">'
+        + '<div style="font-size:10px;color:var(--text3);font-family:var(--sans);margin-bottom:6px">' + bjt.toISOString().slice(0,10) + ' · ' + (c.author==='ai'?'我的分析':'你的回复') + '</div>'
+        + '<div style="font-size:13px;line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word">' + highlighted + '</div>'
+        + '</div>';
+    });
+  }
+
+  if (!t && !manualNotes.length) h += '<div style="padding:20px;text-align:center;color:var(--text3);font-style:italic;font-size:13px">还没有任何内容</div>';
+
+  el.innerHTML = h;
+  el.scrollTop = 0;
+}
+
+// ── 进度手动条目 ──
+let PROG_NOTES = [];
+
+async function loadProgNotes() {
+  PROG_NOTES = await api('progress_notes', { order:'created_at.asc', limit:500 }) || [];
+}
+
+function showNewProgress() {
+  stack.push('pageProgress');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageDetail').classList.add('active');
+  document.getElementById('navZh').textContent = '新增进度';
+  document.getElementById('navEn').textContent = 'Progress';
+  document.getElementById('detailContent').innerHTML = '<div class="f-group">'
+    + '<label class="f-label">归档标题（可选）</label>'
+    + '<input type="text" id="pgTitle" placeholder="5220、5221…">'
+    + '</div>'
+    + '<div class="f-group">'
+    + '<label class="f-label">她的核心变化</label>'
+    + '<textarea id="pgContent" placeholder="这段对话里她发生了什么变化，走到了哪里…" style="min-height:200px"></textarea>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">'
+    + '<button class="btn btn-primary" onclick="saveProgressNote()">保存</button>'
+    + '<button class="btn btn-ghost" onclick="goBack()">取消</button>'
+    + '</div>';
+}
+
+async function saveProgressNote(id) {
+  const content = document.getElementById('pgContent')?.value.trim();
+  if (!content) { toast('内容不能为空'); return; }
+  const title = document.getElementById('pgTitle')?.value.trim() || '';
+  try {
+    if (id) {
+      await upd('progress_notes', id, { content, archive_title: title, updated_at: new Date().toISOString() });
+    } else {
+      await api('progress_notes', { method:'POST', body:{ content, archive_title: title } });
+    }
+    toast('已保存');
+    await loadProgress();
+    goBack();
+  } catch(e) { toast('保存失败'); }
+}
+
+async function editProgressNote(id) {
+  const note = PROG_NOTES.find(n => n.id === id);
+  if (!note) return;
+  stack.push('pageProgress');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pageDetail').classList.add('active');
+  document.getElementById('navZh').textContent = '编辑进度';
+  document.getElementById('navEn').textContent = 'Progress';
+  document.getElementById('detailContent').innerHTML = '<div class="f-group">'
+    + '<label class="f-label">归档标题</label>'
+    + '<input type="text" id="pgTitle" value="' + (note.archive_title||'') + '">'
+    + '</div>'
+    + '<div class="f-group">'
+    + '<label class="f-label">内容</label>'
+    + '<textarea id="pgContent" style="min-height:200px">' + note.content + '</textarea>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">'
+    + '<button class="btn btn-primary" data-id="' + id + '" onclick="saveProgressNote(this.dataset.id)">保存</button>'
+    + '<button class="btn btn-danger" data-id="' + id + '" onclick="deleteProgressNote(this.dataset.id)">删除</button>'
+    + '<button class="btn btn-ghost" onclick="goBack()">取消</button>'
+    + '</div>';
+}
+
+async function deleteProgressNote(id) {
+  if (!confirm('确认删除这条进度记录？')) return;
+  try {
+    await rm('progress_notes', id);
+    PROG_NOTES = PROG_NOTES.filter(n => n.id !== id);
+    toast('已删除');
+    await loadProgress();
+    goBack();
+  } catch(e) { toast('删除失败'); }
+}
+
 // ── 设置 ──
 async function loadSettings() {
   document.getElementById('settingUrl').textContent = SB.url;
@@ -2891,6 +3314,19 @@ async function loadSettings() {
         </div>
       </div>`;
     });
+    // 手动条目也加进时间线
+    (PROG_NOTES||[]).forEach(n => {
+      const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
+      const dateStr = bjt.toISOString().slice(0,10);
+      h += '<div style="margin-bottom:20px;position:relative">'
+        + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--text2);border:2px solid var(--bg)"></div>'
+        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + (n.archive_title?' · '+n.archive_title:'') + ' · 手动</div>'
+        + '<div style="background:rgba(90,90,90,0.04);border:1px solid var(--sep);border-radius:10px;padding:12px">'
+        + '<div style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word">' + n.content + '</div>'
+        + '<button style="margin-top:8px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" onclick="editProgressNote(this.dataset.id)">编辑</button>'
+        + '</div></div>';
+    });
+
     h += '</div>';
     el.innerHTML = h;
   } catch(e) {
