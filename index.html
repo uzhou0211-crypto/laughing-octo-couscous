@@ -2979,29 +2979,6 @@ function filterTheorists() {
   renderTheoristList(q ? ALL_THEORISTS.filter(t => t.name.toLowerCase().includes(q)) : ALL_THEORISTS);
 }
 
-function showTheorist(name) {
-  CURRENT_THEORIST = name;
-  renderTheoristList(ALL_THEORISTS.filter(t => !document.getElementById('thSearch').value || t.name.toLowerCase().includes(document.getElementById('thSearch').value.toLowerCase())));
-  const t = ALL_THEORISTS.find(x => x.name === name);
-  if (!t) return;
-  const el = document.getElementById('thDetail');
-  let h = '<div style="padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--sep)">'
-    + '<div style="font-size:16px;font-weight:500;font-style:italic">' + name + '</div>'
-    + '<div style="font-size:11px;color:var(--text3);font-family:var(--sans);margin-top:2px">' + t.count + ' 条引用</div>'
-    + '</div>';
-  t.comments.forEach(c => {
-    const lines = c.content.split('\n').filter(l => l.includes(name)).slice(0,3).join('\n') || c.content.slice(0,200);
-    const highlighted = lines.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'), '<mark style="background:rgba(196,135,46,0.2);border-radius:2px;padding:0 2px">' + name + '</mark>');
-    const bjt = new Date(new Date(c.created_at).getTime() + 8*3600*1000);
-    h += '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:12px;margin-bottom:8px">'
-      + '<div style="font-size:10px;color:var(--text3);font-family:var(--sans);margin-bottom:6px">' + bjt.toISOString().slice(0,10) + ' · ' + (c.author==='ai'?'我的分析':'你的回复') + '</div>'
-      + '<div style="font-size:13px;line-height:1.7;color:var(--text2);white-space:pre-wrap;word-break:break-word">' + highlighted + '</div>'
-      + '</div>';
-  });
-  el.innerHTML = h;
-  el.scrollTop = 0;
-}
-
 // ── 进度时间线 ──
 function extractHerProgress(content) {
   if (!content) return null;
