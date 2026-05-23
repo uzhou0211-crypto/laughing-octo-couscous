@@ -647,35 +647,6 @@ textarea { min-height: 110px; }
   </div>
 
   <!-- 设置 -->
-  <!-- 理论家 -->
-  <div class="page" id="pageTheorists">
-    <div class="search" style="margin-bottom:8px">
-      <input type="text" placeholder="搜索理论家…" id="thSearch" oninput="filterTheorists()">
-    </div>
-    <div id="thLayout" style="display:flex;height:calc(100vh - 230px)">
-      <div id="thList" style="width:130px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--sep)">
-        <div class="loading">载入中…</div>
-      </div>
-      <div id="thDetail" style="flex:1;overflow-y:auto;padding:0 12px">
-        <div style="padding:40px 0;text-align:center;color:var(--text3);font-style:italic;font-size:13px">选择一位理论家</div>
-      </div>
-    </div>
-    <div style="padding:10px 0 0;border-top:1px solid var(--sep);margin-top:8px">
-      <button class="btn btn-ghost" onclick="showNewThNote()" style="width:100%">+ 新增理论家笔记</button>
-    </div>
-  </div>
-
-  <!-- 进度 -->
-  <div class="page" id="pageProgress">
-    <div id="progressTimeline" style="padding:8px 0 16px">
-      <div class="loading">载入中…</div>
-    </div>
-    <div style="padding:8px 0 0;border-top:1px solid var(--sep)">
-      <button class="btn btn-primary" onclick="showNewProgress()" style="width:100%">+ 新增进度节点</button>
-    </div>
-  </div>
-
-  <!-- 设置 -->
   <div class="page" id="pageSettings">
     <div class="section">
       <div class="section-head"><span class="section-zh">连接</span><span class="section-en">Connection</span></div>
