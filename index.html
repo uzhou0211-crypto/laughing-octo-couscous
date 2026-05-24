@@ -1802,6 +1802,11 @@ function toggleFolder(fid) {
 }
 
 
+function toggleArcView(id) {
+  window._arcViewMode = (window._arcViewMode === 'full') ? 'lines' : 'full';
+  openArchive(id);
+}
+
 async function openArchive(id) {
   stack.push('pageArchives');
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1830,23 +1835,33 @@ async function openArchive(id) {
       </div>
     </div>`;
 
-    // 原文按条数显示
-    h += `<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px"><span class="section-zh">原文</span><span class="section-en">Source</span></div>
-    <div class="card-group">`;
+    // 原文——支持全文/分条切换
+    const arcViewMode = window._arcViewMode || 'lines';
+    h += `<div class="section-head" style="padding:0 2px 10px;margin-bottom:1px;display:flex;align-items:center">
+      <span class="section-zh">原文</span>
+      <span class="section-en" style="margin-left:auto">Source</span>
+      <button onclick="toggleArcView('${id}')" id="arcViewBtn" style="background:none;border:1px solid var(--sep);border-radius:6px;padding:3px 10px;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;margin-left:8px">${arcViewMode==='full'?'分条':'全文'}</button>
+    </div>`;
 
-    lines.forEach((line, i) => {
-      const num = String(i+1).padStart(2,'0');
-      const read = markers.includes(num);
-      h += `<div class="row" style="cursor:default;align-items:flex-start;${read?'opacity:0.5':''}">
-        <div style="flex-shrink:0;font-size:10px;font-family:var(--sans);color:var(--text3);padding-top:2px;min-width:28px">${num}${read?' ✓':''}</div>
-        <div class="row-main">
-          <div style="font-size:14px;line-height:1.65;white-space:pre-wrap">${line}</div>
-          ${!read?`<button class="btn btn-ghost" style="margin-top:6px;padding:4px 10px;font-size:11px;width:auto" onclick="markSegment('${id}','${num}',this)">标记已读</button>`:''}
-        </div>
-      </div>`;
-    });
-
-    h += '</div>';
+    if (arcViewMode === 'full') {
+      // 全文模式
+      h += `<div class="d-card" style="font-size:14px;line-height:1.85;white-space:pre-wrap;word-break:break-word">${arc.content}</div>`;
+    } else {
+      // 分条模式
+      h += '<div class="card-group">';
+      lines.forEach((line, i) => {
+        const num = String(i+1).padStart(2,'0');
+        const read = markers.includes(num);
+        h += `<div class="row" style="cursor:default;align-items:flex-start;${read?'opacity:0.5':''}">
+          <div style="flex-shrink:0;font-size:10px;font-family:var(--sans);color:var(--text3);padding-top:2px;min-width:28px">${num}${read?' ✓':''}</div>
+          <div class="row-main">
+            <div style="font-size:14px;line-height:1.65;white-space:pre-wrap">${line}</div>
+            ${!read?`<button class="btn btn-ghost" style="margin-top:6px;padding:4px 10px;font-size:11px;width:auto" onclick="markSegment('${id}','${num}',this)">标记已读</button>`:''}
+          </div>
+        </div>`;
+      });
+      h += '</div>';
+    }
 
     // 第一反应区——显示AI写的，或者空占位
     h += `<div style="margin-top:16px">
