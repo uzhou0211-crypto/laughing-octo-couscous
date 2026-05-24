@@ -2241,14 +2241,17 @@ async function openLetterTopic(topic) {
   document.getElementById('pageLetterChat').classList.add('active');
   document.getElementById('navZh').textContent = topic;
   document.getElementById('navEn').textContent = 'Letters';
-  // 读这个topic的消息
   try {
-    const msgs = await api('messages', { filter:'topic=eq.'+topic, order:'created_at.asc', limit:200 }) || [];
+    // limit提高到1000，防止消息被截断
+    const msgs = await api('messages', { filter:'topic=eq.'+topic, order:'created_at.asc', limit:5000 }) || [];
     renderLetterChat(msgs, topic);
-    // 标记已读
+    // 标记已读——不await，在后台静默执行不影响渲染
     const unread = msgs.filter(m => m.author === 'ai' && !m.read_by_user);
-    for (const m of unread) upd('messages', m.id, { read_by_user: true });
-  } catch(e) { document.getElementById('letterChatList').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>'; }
+    unread.forEach(m => upd('messages', m.id, { read_by_user: true }).catch(()=>{}));
+  } catch(e) {
+    console.error('openLetterTopic error', e);
+    document.getElementById('letterChatList').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
+  }
 }
 
 function renderLetterChat(msgs, topic) {
