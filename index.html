@@ -639,14 +639,27 @@ textarea { min-height: 110px; }
 
   <!-- 进度 -->
   <div class="page" id="pageProgress">
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <select id="progCharFilter" onchange="loadProgress()" style="flex:1;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--serif);color:var(--text);outline:none;-webkit-appearance:none;">
-        <option value="">全部人物</option>
+    <!-- 控制栏 -->
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <select id="progPersonFilter" onchange="loadProgress()" style="flex:1;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:8px 10px;font-size:13px;font-family:var(--sans);color:var(--text);outline:none;-webkit-appearance:none;">
+        <option value="">全部</option>
+        <option value="o">o 前男友</option>
+        <option value="r">r 现任</option>
+        <option value="u">u 她</option>
       </select>
-      <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap" onclick="toggleProgView()">折线图</button>
+      <select id="progDimGroup" onchange="renderProgressChart()" style="flex:1;background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:8px 10px;font-size:13px;font-family:var(--sans);color:var(--text);outline:none;-webkit-appearance:none;">
+        <option value="core">核心组</option>
+        <option value="relation">关系组</option>
+        <option value="all">全部</option>
+      </select>
+      <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap;font-size:12px" onclick="toggleProgView()" id="progViewBtn">时间线</button>
     </div>
-    <div id="progressChart" style="display:none;margin-bottom:16px"></div>
-    <div id="progressTimeline" style="padding:8px 0 16px">
+    <!-- 维度开关 -->
+    <div id="progDimToggles" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px"></div>
+    <!-- 折线图 -->
+    <div id="progressChart" style="margin-bottom:12px;display:none"></div>
+    <!-- 时间线 -->
+    <div id="progressTimeline" style="padding:4px 0 16px">
       <div class="loading">载入中…</div>
     </div>
     <div style="padding:8px 0 0;border-top:1px solid var(--sep)">
@@ -3076,145 +3089,217 @@ function extractHerProgress(content) {
   };
 }
 
-// 人物颜色映射
-const CHAR_COLORS = ['#cd6e4b','#5a7a9a','#7a9a5a','#9a5a7a','#7a6a9a','#9a8a5a','#5a9a8a'];
-let charColorMap = {};
+// ── 进度折线图 ──
+const DIM_CORE = [
+  { key:'sensory_openness',   label:'感受通道',   color:'#cd6e4b' },
+  { key:'self_clarity',       label:'自我清晰',   color:'#5a7a9a' },
+  { key:'body_understanding', label:'身体理解',   color:'#7a9a5a' },
+  { key:'emotional_expression',label:'情感表达',  color:'#9a5a7a' },
+  { key:'agency',             label:'主体性',     color:'#7a6a9a' },
+];
+const DIM_RELATION = [
+  { key:'power_structure',    label:'权力结构',   color:'#c4872e' },
+  { key:'relationship_mode',  label:'关系模式',   color:'#4a8a9a' },
+  { key:'attachment_pattern', label:'依恋意识',   color:'#8a7a4a' },
+  { key:'narrative_coherence',label:'叙事连贯',   color:'#6a5a8a' },
+];
+const DIM_ALL = [...DIM_CORE, ...DIM_RELATION];
 
-function getCharColor(name) {
-  if (!charColorMap[name]) {
-    const idx = Object.keys(charColorMap).length % CHAR_COLORS.length;
-    charColorMap[name] = CHAR_COLORS[idx];
-  }
-  return charColorMap[name];
-}
+let PROG_DATA = []; // 从progress表读的数据
+let progDimEnabled = {}; // 维度开关状态
+let progViewMode = 'chart';
 
-let progViewMode = 'timeline'; // 'timeline' or 'chart'
+// 初始化所有维度为开启
+DIM_ALL.forEach(d => { progDimEnabled[d.key] = true; });
 
 function toggleProgView() {
-  progViewMode = progViewMode === 'timeline' ? 'chart' : 'timeline';
-  const btn = document.querySelector('[onclick="toggleProgView()"]');
-  if (btn) btn.textContent = progViewMode === 'timeline' ? '折线图' : '时间线';
+  progViewMode = progViewMode === 'chart' ? 'timeline' : 'chart';
+  const btn = document.getElementById('progViewBtn');
+  if (btn) btn.textContent = progViewMode === 'chart' ? '时间线' : '折线图';
   document.getElementById('progressChart').style.display = progViewMode === 'chart' ? 'block' : 'none';
   document.getElementById('progressTimeline').style.display = progViewMode === 'timeline' ? 'block' : 'none';
   if (progViewMode === 'chart') renderProgressChart();
 }
 
+function renderDimToggles() {
+  const group = document.getElementById('progDimGroup')?.value || 'core';
+  const dims = group === 'core' ? DIM_CORE : group === 'relation' ? DIM_RELATION : DIM_ALL;
+  const el = document.getElementById('progDimToggles');
+  if (!el) return;
+  el.innerHTML = dims.map(d =>
+    '<button data-key="' + d.key + '" onclick="toggleDim(this.dataset.key)" style="'
+    + 'background:' + (progDimEnabled[d.key] ? d.color : 'transparent') + ';'
+    + 'color:' + (progDimEnabled[d.key] ? 'white' : 'var(--text3)') + ';'
+    + 'border:1px solid ' + d.color + ';'
+    + 'border-radius:6px;padding:3px 8px;font-size:11px;font-family:var(--sans);cursor:pointer">'
+    + d.label + '</button>'
+  ).join('');
+}
+
+function toggleDim(key) {
+  progDimEnabled[key] = !progDimEnabled[key];
+  renderDimToggles();
+  renderProgressChart();
+}
+
+function getCharColor(name) {
+  const map = { o:'#cd6e4b', r:'#5a7a9a', u:'#7a9a5a' };
+  return map[name] || '#aaa';
+}
+
 async function loadProgress() {
   try {
-    const progNotes = await api('progress_notes', { order:'created_at.asc', limit:500 }) || [];
-    PROG_NOTES = progNotes;
+    // 同时读 progress 表（新）和 progress_notes 表（旧手动条目）
+    const [progData, progNotes] = await Promise.all([
+      api('progress', { order:'created_at.asc', limit:1000 }) || [],
+      api('progress_notes', { order:'created_at.asc', limit:500 }) || []
+    ]);
+    PROG_DATA = progData || [];
+    PROG_NOTES = progNotes || [];
 
-    // 更新人物筛选下拉
-    const chars = [...new Set(PROG_NOTES.map(n => n.character_name || '她'))].sort();
-    const sel = document.getElementById('progCharFilter');
-    if (sel) {
-      const cur = sel.value;
-      sel.innerHTML = '<option value="">全部人物</option>'
-        + chars.map(c => '<option value="' + c + '"' + (c===cur?' selected':'') + '>' + c + '</option>').join('');
-    }
+    const person = document.getElementById('progPersonFilter')?.value || '';
+    const filtered = person ? PROG_DATA.filter(d => d.person === person) : PROG_DATA;
 
-    const filterChar = sel?.value || '';
-    const filtered = filterChar ? PROG_NOTES.filter(n => (n.character_name||'她') === filterChar) : PROG_NOTES;
+    // 渲染维度开关
+    renderDimToggles();
 
-    const el = document.getElementById('progressTimeline');
-    if (!filtered.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-zh">还没有进度记录</div></div>';
-      return;
-    }
-
-    let h = '<div style="position:relative;padding-left:32px">'
-      + '<div style="position:absolute;left:12px;top:0;bottom:0;width:1px;background:var(--sep)"></div>';
-
-    filtered.forEach(n => {
-      const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
-      const dateStr = bjt.toISOString().slice(0,10);
-      const charName = n.character_name || '她';
-      const color = getCharColor(charName);
-      const intensity = n.intensity || 5;
-      h += '<div style="margin-bottom:20px;position:relative">'
-        + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:' + color + ';border:2px solid var(--bg)"></div>'
-        + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px;display:flex;align-items:center;gap:6px">'
-        + dateStr + (n.archive_title?' · '+n.archive_title:'')
-        + '<span style="background:' + color + '20;color:' + color + ';border-radius:4px;padding:1px 6px;font-size:10px">' + charName + '</span>'
-        + '<span style="color:var(--text3)">强度 ' + intensity + '</span>'
-        + '</div>'
-        + '<div style="background:var(--card);border:1px solid ' + color + '40;border-radius:10px;padding:12px;border-left:3px solid ' + color + '">'
-        + '<div style="font-size:14px;line-height:1.7;color:var(--text);white-space:pre-wrap;word-break:break-word">' + n.content + '</div>'
-        + '<button style="margin-top:8px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" onclick="editProgressNote(this.dataset.id)">编辑</button>'
-        + '</div></div>';
-    });
-
-    h += '</div>';
-    el.innerHTML = h;
-
+    // 折线图
+    document.getElementById('progressChart').style.display = progViewMode === 'chart' ? 'block' : 'none';
+    document.getElementById('progressTimeline').style.display = progViewMode === 'timeline' ? 'block' : 'none';
     if (progViewMode === 'chart') renderProgressChart();
-  } catch(e) { document.getElementById('progressTimeline').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>'; }
+
+    // 时间线——手动条目
+    renderProgressTimeline(filtered);
+
+  } catch(e) {
+    console.error('loadProgress error', e);
+    document.getElementById('progressTimeline').innerHTML = '<div class="empty"><div class="empty-zh">加载失败</div></div>';
+  }
+}
+
+function renderProgressTimeline(filtered) {
+  const el = document.getElementById('progressTimeline');
+  const allNotes = PROG_NOTES || [];
+
+  if (!filtered.length && !allNotes.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-zh">还没有进度记录</div></div>';
+    return;
+  }
+
+  let h = '<div style="position:relative;padding-left:32px">'
+    + '<div style="position:absolute;left:12px;top:0;bottom:0;width:1px;background:var(--sep)"></div>';
+
+  // progress 表条目
+  filtered.forEach(n => {
+    const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
+    const dateStr = bjt.toISOString().slice(0,10);
+    const color = getCharColor(n.person || 'u');
+    const dims = DIM_ALL.filter(d => n[d.key] != null);
+    const avgScore = dims.length ? (dims.reduce((s,d) => s + parseFloat(n[d.key]||0), 0) / dims.length).toFixed(1) : '—';
+    h += '<div style="margin-bottom:16px;position:relative">'
+      + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:' + color + ';border:2px solid var(--bg)"></div>'
+      + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px;display:flex;align-items:center;gap:6px">'
+      + dateStr
+      + (n.archive_title?'<span style="color:var(--text2)"> · ' + n.archive_title + '</span>':'')
+      + '<span style="background:' + color + '20;color:' + color + ';border-radius:4px;padding:1px 6px">' + (n.person||'?') + '</span>'
+      + '<span>均分 ' + avgScore + '</span>'
+      + '</div>'
+      + '<div style="background:var(--card);border:1px solid ' + color + '30;border-radius:10px;padding:10px 12px;border-left:3px solid ' + color + '">'
+      + (n.note ? '<div style="font-size:14px;line-height:1.65;color:var(--text);margin-bottom:8px">' + n.note + '</div>' : '')
+      + '<div style="display:flex;flex-wrap:wrap;gap:4px">'
+      + dims.map(d => '<span style="font-size:10px;font-family:var(--sans);background:' + d.color + '15;color:' + d.color + ';border-radius:4px;padding:2px 6px">' + d.label + ' ' + n[d.key] + '</span>').join('')
+      + '</div>'
+      + '<button style="margin-top:8px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" onclick="editProgressNote(this.dataset.id)">编辑</button>'
+      + '</div></div>';
+  });
+
+  // 旧手动条目
+  allNotes.forEach(n => {
+    const bjt = new Date(new Date(n.created_at).getTime() + 8*3600*1000);
+    const dateStr = bjt.toISOString().slice(0,10);
+    h += '<div style="margin-bottom:16px;position:relative">'
+      + '<div style="position:absolute;left:-24px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--text3);border:2px solid var(--bg)"></div>'
+      + '<div style="font-size:10px;font-family:var(--sans);color:var(--text3);margin-bottom:4px">' + dateStr + (n.archive_title?' · '+n.archive_title:'') + ' · 手动</div>'
+      + '<div style="background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:10px 12px">'
+      + '<div style="font-size:14px;line-height:1.65;color:var(--text);white-space:pre-wrap">' + n.content + '</div>'
+      + '<button style="margin-top:8px;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;font-family:var(--sans)" data-id="' + n.id + '" onclick="editProgressNote(this.dataset.id)">编辑</button>'
+      + '</div></div>';
+  });
+
+  h += '</div>';
+  el.innerHTML = h;
 }
 
 function renderProgressChart() {
   const el = document.getElementById('progressChart');
-  if (!PROG_NOTES.length) { el.innerHTML = ''; return; }
+  if (!el) return;
 
-  // 按人物分组
-  const chars = [...new Set(PROG_NOTES.map(n => n.character_name || '她'))].sort();
-  const filterChar = document.getElementById('progCharFilter')?.value || '';
-  const activeChars = filterChar ? [filterChar] : chars;
+  const person = document.getElementById('progPersonFilter')?.value || '';
+  const group = document.getElementById('progDimGroup')?.value || 'core';
+  const dims = (group === 'core' ? DIM_CORE : group === 'relation' ? DIM_RELATION : DIM_ALL)
+    .filter(d => progDimEnabled[d.key]);
 
-  const W = el.offsetWidth || 340;
-  const H = 220;
-  const PAD = { top: 20, right: 20, bottom: 40, left: 36 };
-  const chartW = W - PAD.left - PAD.right;
-  const chartH = H - PAD.top - PAD.bottom;
+  const filtered = (person ? PROG_DATA.filter(d => d.person === person) : PROG_DATA)
+    .filter(d => dims.some(dim => d[dim.key] != null));
 
-  // 时间范围
-  const allTimes = PROG_NOTES.map(n => new Date(n.created_at).getTime());
-  const minT = Math.min(...allTimes);
-  const maxT = Math.max(...allTimes);
-  const rangeT = maxT - minT || 1;
-
-  const xPos = t => PAD.left + ((new Date(t).getTime() - minT) / rangeT) * chartW;
-  const yPos = v => PAD.top + chartH - ((v - 1) / 9) * chartH;
-
-  let svg = '<svg width="' + W + '" height="' + H + '" style="overflow:visible">';
-
-  // 网格线
-  for (let i = 1; i <= 10; i += 3) {
-    const y = yPos(i);
-    svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W-PAD.right) + '" y2="' + y + '" stroke="var(--sep)" stroke-width="1"/>';
-    svg += '<text x="' + (PAD.left-4) + '" y="' + (y+4) + '" text-anchor="end" font-size="9" fill="var(--text3)" font-family="system-ui">' + i + '</text>';
+  if (!filtered.length) {
+    el.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;font-style:italic">暂无数据</div>';
+    return;
   }
 
-  // 每个人物画一条线
-  activeChars.forEach(charName => {
-    const notes = PROG_NOTES.filter(n => (n.character_name||'她') === charName).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-    if (!notes.length) return;
-    const color = getCharColor(charName);
+  const W = Math.max(el.offsetWidth || 340, 300);
+  const H = 240;
+  const PAD = { top:16, right:60, bottom:44, left:32 };
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top - PAD.bottom;
 
-    // 折线
-    const points = notes.map(n => xPos(n.created_at) + ',' + yPos(n.intensity||5));
-    svg += '<polyline points="' + points.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>';
+  const xPos = i => PAD.left + (i / Math.max(filtered.length - 1, 1)) * cW;
+  const yPos = v => PAD.top + cH - (parseFloat(v) / 10) * cH;
 
-    // 点
-    notes.forEach(n => {
-      const x = xPos(n.created_at);
-      const y = yPos(n.intensity||5);
-      svg += '<circle cx="' + x + '" cy="' + y + '" r="4" fill="' + color + '" stroke="white" stroke-width="1.5"/>';
-    });
+  let svg = '<svg width="' + W + '" height="' + H + '" style="overflow:visible;display:block">';
 
-    // 人物标签（最后一个点旁边）
-    const last = notes[notes.length-1];
-    svg += '<text x="' + (xPos(last.created_at)+8) + '" y="' + (yPos(last.intensity||5)+4) + '" font-size="11" fill="' + color + '" font-family="system-ui">' + charName + '</text>';
+  // 背景网格
+  [0,2,4,6,8,10].forEach(v => {
+    const y = yPos(v);
+    svg += '<line x1="' + PAD.left + '" y1="' + y + '" x2="' + (W-PAD.right) + '" y2="' + y
+      + '" stroke="#e8e2d8" stroke-width="' + (v===0||v===10?'1':'0.5') + '"/>';
+    svg += '<text x="' + (PAD.left-4) + '" y="' + (y+3) + '" text-anchor="end" font-size="9" fill="#aaa" font-family="system-ui">' + v + '</text>';
   });
 
-  // X轴时间标签
-  const dateLabels = [...new Set(PROG_NOTES.map(n => n.created_at.slice(0,10)))].slice(0,5);
-  dateLabels.forEach(d => {
-    const x = xPos(d + 'T00:00:00Z');
-    svg += '<text x="' + x + '" y="' + (H-8) + '" text-anchor="middle" font-size="9" fill="var(--text3)" font-family="system-ui">' + d.slice(5) + '</text>';
+  // 每个维度一条线
+  dims.forEach(dim => {
+    const pts = filtered.map((d,i) => ({ x: xPos(i), y: yPos(d[dim.key]||0), d }))
+      .filter(p => filtered[dims.indexOf(dim)] != null || true);
+    const validPts = filtered.map((d,i) => d[dim.key] != null ? { x: xPos(i), y: yPos(d[dim.key]), d, i } : null).filter(Boolean);
+    if (!validPts.length) return;
+
+    // 折线
+    const pathD = validPts.map((p,j) => (j===0?'M':'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+    svg += '<path d="' + pathD + '" fill="none" stroke="' + dim.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>';
+
+    // 数据点
+    validPts.forEach(p => {
+      svg += '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3.5" fill="' + dim.color + '" stroke="white" stroke-width="1.2">'
+        + '<title>' + dim.label + ': ' + p.d[dim.key] + (p.d.archive_title?' | '+p.d.archive_title:'') + (p.d.note?' | '+p.d.note.slice(0,50):'') + '</title>'
+        + '</circle>';
+    });
+
+    // 维度标签（最后一个点右边）
+    const last = validPts[validPts.length-1];
+    svg += '<text x="' + (last.x+6) + '" y="' + (last.y+3) + '" font-size="9" fill="' + dim.color + '" font-family="system-ui">' + dim.label + '</text>';
+  });
+
+  // X轴标签——归档标题
+  const step = Math.ceil(filtered.length / 8);
+  filtered.forEach((d, i) => {
+    if (i % step !== 0 && i !== filtered.length-1) return;
+    const label = (d.archive_title || d.person + i).slice(0,6);
+    svg += '<text x="' + xPos(i) + '" y="' + (H-6) + '" text-anchor="middle" font-size="8" fill="#aaa" font-family="system-ui" transform="rotate(-30,' + xPos(i) + ',' + (H-6) + ')">' + label + '</text>';
   });
 
   svg += '</svg>';
-  el.innerHTML = '<div style="background:var(--card);border:1px solid var(--sep);border-radius:12px;padding:12px;overflow-x:auto">' + svg + '</div>';
+
+  el.innerHTML = '<div style="background:#1a1a1a;border-radius:12px;padding:14px 12px;overflow-x:auto">' + svg + '</div>';
 }
 
 function toggleProgress(id) {
