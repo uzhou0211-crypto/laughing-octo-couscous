@@ -500,8 +500,16 @@ textarea { min-height: 110px; }
     <div class="search">
       <input type="text" placeholder="搜索问题…" id="kSearch" oninput="searchKnw()">
     </div>
-    <div style="margin-bottom:16px">
-      <button class="btn btn-primary" onclick="showNewKnw()">+ 新增问题</button>
+    <div id="knwNormalBar" style="margin-bottom:16px;display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:2" onclick="showNewKnw()">+ 新增问题</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="showNewKnwFolder()">+ 文件夹</button>
+    </div>
+    <div id="knwSelectBar" style="display:none;margin-bottom:16px;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="knwSelectCount" style="font-size:13px;font-family:var(--sans);color:var(--text2);width:100%">已选 0 条</span>
+      <button class="btn btn-ghost" style="flex:1" onclick="selectAllKnw()">全选</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="moveKnwToFolder()">移入文件夹</button>
+      <button class="btn btn-danger" style="flex:1" onclick="deleteSelectedKnw()">删除</button>
+      <button class="btn btn-ghost" style="flex:1" onclick="exitKnwSelect()">取消</button>
     </div>
     <div id="kList"><div class="loading">载入中…</div></div>
   </div>
@@ -1343,42 +1351,90 @@ async function loadKnw() {
 function renderKnw(list) {
   const el = document.getElementById('kList');
   if (!list.length) { el.innerHTML='<div class="empty"><div class="empty-en">Empty</div><div class="empty-zh">还没有条目</div></div>'; return; }
-  const p=list.filter(k=>k.status==='pending'), a=list.filter(k=>k.status==='answered');
-  let h='';
-  if (p.length) {
-    h+=`<div class="section"><div class="section-head"><span class="section-zh">待回答</span><span class="section-n">${p.length}</span></div><div class="card-group" style="margin-top:1px">`;
-    p.forEach((k,i)=>{
-      h += `<div class="row" data-id="${k.id}" data-table="knowledge" draggable="true"
-        ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event)" ondragend="dragEnd(event)"
-        onclick="openKnw(this.dataset.id)">
-        <div style="color:var(--text3);font-size:16px;cursor:grab;padding:0 8px 0 0;flex-shrink:0;touch-action:none" onmousedown="event.stopPropagation()" ontouchstart="event.stopPropagation()">⠿</div>
-        <div class="row-main">
-          <div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div>
-          <div class="row-sub">${k.category} · ${ago(k.created_at)}</div>
-        </div>
-        <div class="chevron">›</div>
-      </div>`;
-    });
-    h+='</div></div>';
+
+  function knwRow(k) {
+    const isSel = knwSelected.has(k.id);
+    const leftIcon = knwSelectMode
+      ? '<div style="width:20px;height:20px;border-radius:50%;border:2px solid ' + (isSel?'#ff3b30':'var(--text3)') + ';background:' + (isSel?'#ff3b30':'transparent') + ';flex-shrink:0;display:flex;align-items:center;justify-content:center">' + (isSel?'<span style="color:white;font-size:12px">✓</span>':'') + '</div>'
+      : '<div style="color:var(--text3);font-size:16px;cursor:grab;padding:0 8px 0 0;flex-shrink:0">⠿</div>';
+    const rightIcon = knwSelectMode ? '' : '<div class="chevron">›</div>';
+    return '<div class="row" data-id="' + k.id + '" data-table="knowledge"'
+      + (knwSelectMode ? '' : ' draggable="true" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event)" ondragend="dragEnd(event)"')
+      + ' style="' + (isSel?'background:rgba(255,59,48,0.08);':'') + '"'
+      + ' data-kid="' + k.id + '" onclick="knwSelectMode?toggleKnwItem(this.dataset.kid):openKnw(this.dataset.kid)"'
+      + ' ontouchstart="knwLongPress(this.dataset.kid,this)"'
+      + ' ontouchend="clearKnwLongPress()"'
+      + ' ontouchmove="clearKnwLongPress()">'
+      + leftIcon
+      + '<div class="row-main">'
+      + '<div class="row-title">' + k.question.slice(0,52) + (k.question.length>52?'…':'') + '</div>'
+      + '<div class="row-sub">' + k.category + ' · ' + ago(k.created_at) + '</div>'
+      + '</div>'
+      + rightIcon
+      + '</div>';
   }
-  if (a.length) {
-    h+=`<div class="section"><div class="section-head"><span class="section-zh">已回答</span><span class="section-n">${a.length}</span></div><div class="card-group" style="margin-top:1px">`;
-    a.forEach((k,i)=>{
-      h += `<div class="row" data-id="${k.id}" data-table="knowledge" draggable="true"
-        ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dragDrop(event)" ondragend="dragEnd(event)"
-        onclick="openKnw(this.dataset.id)">
-        <div style="color:var(--text3);font-size:16px;cursor:grab;padding:0 8px 0 0;flex-shrink:0">⠿</div>
-        <div class="row-main">
-          <div class="row-title">${k.question.slice(0,52)}${k.question.length>52?'…':''}</div>
-          <div class="row-sub">${k.category} · ${ago(k.created_at)}</div>
-        </div>
-        <div class="chevron">›</div>
-      </div>`;
-    });
-    h+='</div></div>';
+
+  // 按文件夹分组
+  const folders = {};
+  const noFolder = [];
+  list.forEach(k => {
+    if (k.folder) { if (!folders[k.folder]) folders[k.folder]=[]; folders[k.folder].push(k); }
+    else noFolder.push(k);
+  });
+
+  let h = '';
+
+  // 文件夹
+  Object.keys(folders).sort().forEach(fname => {
+    const fid = 'knwfolder_' + fname.replace(/\s/g,'_');
+    const isLocked = lockedFolders.has('knowledge:' + fname);
+    h += '<div class="section">'
+      + '<div class="section-head" style="cursor:pointer" data-fid="' + fid + '" onclick="toggleKnwFolder(this.dataset.fid)">'
+      + '<span style="font-size:16px;margin-right:6px">' + (isLocked?'🔒':'📁') + '</span>'
+      + '<span class="section-zh">' + fname + '</span>'
+      + '<span class="section-n" style="margin-left:auto">' + folders[fname].length + '</span>'
+      + '<span id="' + fid + '_arrow" style="margin-left:8px;color:var(--text3);font-size:13px">▾</span>'
+      + '</div>';
+    if (!isLocked) {
+      h += '<div id="' + fid + '" class="card-group" style="margin-top:1px">';
+      folders[fname].forEach(k => { h += knwRow(k); });
+      h += '</div>';
+    } else {
+      h += '<div id="' + fid + '" style="display:none"><div class="card-group">';
+      folders[fname].forEach(k => { h += knwRow(k); });
+      h += '</div></div>';
+    }
+    if (!knwSelectMode) {
+      h += '<div style="display:flex;gap:8px;padding:4px 2px">'
+        + '<button data-fn="' + fname + '" onclick="toggleKnwFolderLock(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:4px 0">' + (isLocked?'🔓 解锁':'🔒 加锁') + '</button>'
+        + '<button data-fn="' + fname + '" onclick="renameKnwFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:var(--text3);cursor:pointer;padding:4px 4px">重命名</button>'
+        + '<button data-fn="' + fname + '" onclick="deleteKnwFolder(this.dataset.fn)" style="background:none;border:none;font-size:11px;font-family:var(--sans);color:#ff3b30;cursor:pointer;padding:4px 0">删除文件夹</button>'
+        + '</div>';
+    }
+    h += '</div>';
+  });
+
+  // 未分类——按待回答/已回答
+  if (noFolder.length) {
+    const p = noFolder.filter(k=>k.status==='pending');
+    const a = noFolder.filter(k=>k.status==='answered');
+    if (Object.keys(folders).length) h += '<div class="section"><div class="section-head"><span class="section-zh">未分类</span><span class="section-n">' + noFolder.length + '</span></div>';
+    if (p.length) {
+      h += '<div class="section-head" style="padding:4px 2px 6px"><span class="section-zh" style="font-size:12px">待回答</span><span class="section-n">' + p.length + '</span></div><div class="card-group" style="margin-top:1px;margin-bottom:8px">';
+      p.forEach(k => { h += knwRow(k); });
+      h += '</div>';
+    }
+    if (a.length) {
+      h += '<div class="section-head" style="padding:4px 2px 6px"><span class="section-zh" style="font-size:12px">已回答</span><span class="section-n">' + a.length + '</span></div><div class="card-group" style="margin-top:1px;margin-bottom:8px">';
+      a.forEach(k => { h += knwRow(k); });
+      h += '</div>';
+    }
+    if (Object.keys(folders).length) h += '</div>';
   }
-  el.innerHTML=h;
+
+  el.innerHTML = h;
 }
+
 
 function searchKnw() {
   const q=document.getElementById('kSearch').value.toLowerCase();
@@ -2365,6 +2421,172 @@ async function sendLetter() {
   } catch(e) { toast('发送失败'); }
 }
 
+
+// ── 知识库多选 ──
+let knwSelectMode = false;
+let knwSelected = new Set();
+let knwLongPressTimer = null;
+
+function knwLongPress(id, el) {
+  knwLongPressTimer = setTimeout(() => {
+    navigator.vibrate && navigator.vibrate(30);
+    enterKnwSelect(id);
+  }, 500);
+}
+function clearKnwLongPress() {
+  if (knwLongPressTimer) { clearTimeout(knwLongPressTimer); knwLongPressTimer = null; }
+}
+
+function enterKnwSelect(id) {
+  knwSelectMode = true;
+  knwSelected = new Set([id]);
+  document.getElementById('knwNormalBar').style.display = 'none';
+  document.getElementById('knwSelectBar').style.display = 'flex';
+  renderKnw(KNW);
+  updateKnwSelectCount();
+}
+
+function exitKnwSelect() {
+  knwSelectMode = false;
+  knwSelected = new Set();
+  document.getElementById('knwNormalBar').style.display = 'flex';
+  document.getElementById('knwSelectBar').style.display = 'none';
+  renderKnw(KNW);
+}
+
+function toggleKnwItem(id) {
+  if (!knwSelectMode) return;
+  if (knwSelected.has(id)) knwSelected.delete(id);
+  else knwSelected.add(id);
+  updateKnwSelectCount();
+  renderKnw(KNW);
+}
+
+function selectAllKnw() {
+  KNW.forEach(k => knwSelected.add(k.id));
+  updateKnwSelectCount();
+  renderKnw(KNW);
+}
+
+function updateKnwSelectCount() {
+  const el = document.getElementById('knwSelectCount');
+  if (el) el.textContent = '已选 ' + knwSelected.size + ' 条';
+}
+
+async function deleteSelectedKnw() {
+  if (!knwSelected.size) { toast('请先选择'); return; }
+  if (!confirm('确认删除选中的 ' + knwSelected.size + ' 条知识？')) return;
+  try {
+    for (const id of knwSelected) await rm('knowledge', id);
+    KNW = KNW.filter(k => !knwSelected.has(k.id));
+    toast('已删除 ' + knwSelected.size + ' 条');
+    exitKnwSelect();
+  } catch(e) { toast('删除失败'); }
+}
+
+async function moveKnwToFolder() {
+  if (!knwSelected.size) { toast('请先选择'); return; }
+  const folders = [...new Set(KNW.filter(k=>k.folder).map(k=>k.folder))];
+  let name;
+  if (folders.length) {
+    name = prompt('选择或新建文件夹：\n' + folders.map((f,i)=>i+1+'. '+f).join('\n') + '\n\n输入文件夹名或序号：');
+    if (!name) return;
+    const idx = parseInt(name) - 1;
+    if (idx >= 0 && idx < folders.length) name = folders[idx];
+  } else {
+    name = prompt('文件夹名称：');
+    if (!name) return;
+  }
+  name = name.trim();
+  if (!name) return;
+  try {
+    for (const id of knwSelected) {
+      await upd('knowledge', id, { folder: name });
+      const k = KNW.find(x => x.id === id);
+      if (k) k.folder = name;
+    }
+    toast('已移入 ' + name);
+    exitKnwSelect();
+  } catch(e) { toast('操作失败'); }
+}
+
+function showNewKnwFolder() {
+  toast('长按知识条目进入多选，再点移入文件夹');
+}
+
+function toggleKnwFolder(fid) {
+  const el = document.getElementById(fid);
+  const arrow = document.getElementById(fid + '_arrow');
+  if (!el) return;
+  const fname = fid.replace('knwfolder_','').replace(/_/g,' ');
+  if (lockedFolders.has('knowledge:' + fname)) {
+    const pin = prompt('输入密码解锁文件夹：');
+    if (!pin) return;
+    verifyFolderLock('knowledge', fname, pin).then(ok => {
+      if (ok) { el.style.display=''; if (arrow) arrow.textContent='▾'; }
+      else toast('密码错误');
+    });
+    return;
+  }
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  if (arrow) arrow.textContent = hidden ? '▾' : '▸';
+}
+
+async function toggleKnwFolderLock(fname) {
+  const key = 'knowledge:' + fname;
+  if (lockedFolders.has(key)) {
+    const pin = prompt('输入密码解锁：');
+    if (!pin) return;
+    const ok = await verifyFolderLock('knowledge', fname, pin);
+    if (!ok) { toast('密码错误'); return; }
+    try {
+      await fetch(`${SB.url}/rest/v1/folder_locks?folder_name=eq.${encodeURIComponent(fname)}&table_name=eq.knowledge`, {
+        method:'DELETE', headers:{'apikey':SB.key,'Authorization':'Bearer '+SB.key}
+      });
+      lockedFolders.delete(key);
+      toast('已解锁');
+      renderKnw(KNW);
+    } catch(e) { toast('操作失败'); }
+  } else {
+    const pin = prompt('设置文件夹密码：');
+    if (!pin||!pin.trim()) return;
+    const pin2 = prompt('再次确认密码：');
+    if (pin !== pin2) { toast('两次密码不一致'); return; }
+    try {
+      await api('folder_locks', {method:'POST', body:{folder_name:fname, table_name:'knowledge', pin_hash:btoa(pin)}});
+      lockedFolders.add(key);
+      toast('已加锁 🔒');
+      renderKnw(KNW);
+    } catch(e) { toast('操作失败'); }
+  }
+}
+
+async function renameKnwFolder(oldName) {
+  const newName = prompt('新名称：', oldName);
+  if (!newName||!newName.trim()||newName===oldName) return;
+  try {
+    const items = KNW.filter(k => k.folder === oldName);
+    for (const k of items) { await upd('knowledge', k.id, {folder:newName.trim()}); k.folder = newName.trim(); }
+    toast('已重命名'); renderKnw(KNW);
+  } catch(e) { toast('操作失败'); }
+}
+
+async function deleteKnwFolder(name) {
+  const items = KNW.filter(k => k.folder === name);
+  const choice = confirm('删除文件夹 ' + name + '\n\n确定 = 连同里面 ' + items.length + ' 条知识一起删除\n取消 = 只删文件夹，知识移回未分类');
+  try {
+    if (choice) {
+      for (const k of items) await rm('knowledge', k.id);
+      KNW = KNW.filter(k => k.folder !== name);
+      toast('已全部删除');
+    } else {
+      for (const k of items) { await upd('knowledge', k.id, {folder:null}); k.folder = null; }
+      toast('文件夹已删除');
+    }
+    renderKnw(KNW);
+  } catch(e) { toast('操作失败'); }
+}
 
 // ── 文件夹锁 ──
 let lockedFolders = new Set(); // 格式: 'memories:文件夹名' 或 'archives:文件夹名'
